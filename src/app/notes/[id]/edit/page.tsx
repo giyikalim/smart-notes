@@ -175,11 +175,6 @@ export default function FullscreenEditPage() {
               >
                 ← Geri Dön
               </button>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-blue-400">🚀</span>
-                <h1 className="text-xl font-bold">Tam Ekran Düzenleme</h1>
-              </div>
             </div>
 
             <div className="flex items-center space-x-4">

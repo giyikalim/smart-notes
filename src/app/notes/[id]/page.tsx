@@ -23,15 +23,14 @@ export default function NoteDetailPage() {
   // Not verilerini getir
   const {
     data: note,
-    isLoading,
-    isFetching,
-    error,
+    status,
     refetch,
   } = useQuery({
     queryKey: ["note", noteId],
-    queryFn: () => noteAPI.getNoteById(noteId),
+    queryFn: async () => {
+      return await noteAPI.getNoteById(noteId);
+    },
     enabled: !!noteId && !!user,
-    refetchOnWindowFocus: false,
   });
 
   // Elasticsearch ile analiz edilmiş öneriler
@@ -197,7 +196,7 @@ export default function NoteDetailPage() {
   };
 
   // Loading state
-  if (isLoading || isFetching) {
+  if (status === "pending") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12">
         <div className="max-w-4xl mx-auto px-4">
@@ -213,9 +212,7 @@ export default function NoteDetailPage() {
   }
 
   // Error state
-  if (error || !note) {
-    console.log("error", error);
-    console.log("note", note);
+  if (status === "error" || !note) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12">
         <div className="max-w-4xl mx-auto px-4 text-center">
@@ -461,8 +458,8 @@ export default function NoteDetailPage() {
                               {elasticSuggestions.sentiment > 0.3
                                 ? "😊 Pozitif"
                                 : elasticSuggestions.sentiment < -0.3
-                                ? "😔 Negatif"
-                                : "😐 Nötr"}
+                                  ? "😔 Negatif"
+                                  : "😐 Nötr"}
                             </span>
                           </div>
                         </div>
@@ -684,8 +681,8 @@ export default function NoteDetailPage() {
                         {note.metadata.sentiment > 0.3
                           ? "😊"
                           : note.metadata.sentiment < -0.3
-                          ? "😔"
-                          : "😐"}
+                            ? "😔"
+                            : "😐"}
                       </div>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">

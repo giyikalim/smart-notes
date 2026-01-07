@@ -2,22 +2,56 @@
 const API_BASE_URL = "/api/elasticsearch";
 
 export interface Note {
-  _id: string;
+  _id?: string;
   id: string;
   userId: string;
   title: string;
   content: string;
-  summary: string; // Elasticsearch tarafından oluşturulan özet
-  keywords: string[]; // Elasticsearch tarafından çıkarılan anahtar kelimeler
+  summary: string;
+  keywords: string[];
   createdAt: string;
-  expiresAt: string; // 3 ay sonra otomatik
-  relevanceScore?: number; // Arama sırasında relevance score
+  expiresAt: string;
+  relevanceScore?: number;
   isExpired: boolean;
-  metadata?: {
+  metadata: {
     wordCount: number;
     language: string;
-    sentiment?: number; // -1 (negatif) to 1 (pozitif)
+    sentiment?: number;
+    aiMetadata?: {
+      suggestedTitle: string;
+      suggestedSummary: string;
+      isAISuggested: boolean;
+      aiLanguage: string;
+      aiWordCount: number;
+      userEdited?: boolean;
+      editedAt?: string;
+    };
+    readabilityScore?: number;
+    lastEdited?: string;
   };
+}
+
+export interface CreateNoteOptions {
+  userId: string;
+  content: string;
+  title?: string;
+  summary?: string;
+  language?: string;
+  wordCount?: number;
+  aiSuggestions?: {
+    suggestedTitle: string;
+    suggestedSummary: string;
+    language: string;
+    wordCount: number;
+  };
+}
+
+export interface UpdateNoteOptions {
+  noteId: string;
+  title?: string;
+  summary?: string;
+  content?: string;
+  isEditedByUser?: boolean;
 }
 
 // Elasticsearch için gelişmiş API client
@@ -44,33 +78,84 @@ class ElasticsearchNoteAPI {
     return response.json();
   }
 
-  // Elasticsearch ile not oluşturma
-  async createNote(userId: string, content: string): Promise<Note> {
+  // Yeni: AI metadata ile not oluştur
+  async createNoteWithAIMetadata(options: CreateNoteOptions): Promise<Note> {
+    const {
+      userId,
+      content,
+      title,
+      summary,
+      language = "tr",
+      wordCount,
+      aiSuggestions,
+    } = options;
+
+    // Expire tarihi (3 ay sonra)
     const expiresAt = new Date();
     expiresAt.setMonth(expiresAt.getMonth() + 3);
 
-    const title = await this.generateTitleWithElastic(content);
-    const summary = await this.generateSummaryWithElastic(content);
-    const keywords = await this.extractKeywordsWithElastic(content);
+    // Başlık ve özet belirlenmesi
+    const finalTitle =
+      title ||
+      aiSuggestions?.suggestedTitle ||
+      (await this.generateTitleWithElastic(content));
 
+    const finalSummary =
+      summary ||
+      aiSuggestions?.suggestedSummary ||
+      (await this.generateSummaryWithElastic(content));
+
+    // Kelime sayısı
+    const finalWordCount =
+      wordCount ||
+      aiSuggestions?.wordCount ||
+      content.split(/\s+/).filter((w) => w.length > 0).length;
+
+    // Dil
+    const finalLanguage = aiSuggestions?.language || language;
+
+    // Kullanıcı AI önerisini değiştirdi mi?
+    const userEditedTitle =
+      title && aiSuggestions && title !== aiSuggestions.suggestedTitle;
+    const userEditedSummary =
+      summary && aiSuggestions && summary !== aiSuggestions.suggestedSummary;
+    const userEdited = userEditedTitle || userEditedSummary;
+
+    // Anahtar kelimeler ve sentiment analizi
+    const keywords = await this.extractKeywordsWithElastic(content);
+    const sentiment = await this.analyzeSentiment(content);
+
+    // Not objesi oluştur
     const note: Note = {
       id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userId,
-      title,
+      title: finalTitle,
       content,
-      summary,
+      summary: finalSummary,
       keywords,
       createdAt: new Date().toISOString(),
       expiresAt: expiresAt.toISOString(),
       isExpired: false,
       metadata: {
-        wordCount: content.split(/\s+/).filter((w) => w.length > 0).length,
-        language: "tr",
-        sentiment: await this.analyzeSentiment(content),
+        wordCount: finalWordCount,
+        language: finalLanguage,
+        sentiment,
+        readabilityScore: await this.calculateReadability(content),
+        ...(aiSuggestions && {
+          aiMetadata: {
+            suggestedTitle: aiSuggestions.suggestedTitle,
+            suggestedSummary: aiSuggestions.suggestedSummary,
+            isAISuggested: true,
+            aiLanguage: aiSuggestions.language,
+            aiWordCount: aiSuggestions.wordCount,
+            userEdited,
+            ...(userEdited && { editedAt: new Date().toISOString() }),
+          },
+        }),
       },
     };
 
-    // Elasticsearch'e kaydet - _id otomatik oluşacak
+    // Elasticsearch'e kaydet
     const response = await this.request<{
       _id: string;
       result: string;
@@ -79,61 +164,156 @@ class ElasticsearchNoteAPI {
       body: JSON.stringify(note),
     });
 
-    // Elasticsearch'in oluşturduğu _id'yi notumuza ekle
     note._id = response._id;
     return note;
   }
 
-  // Not API - Update metodunu güçlendir
-  async updateNote(noteId: string, updates: Partial<Note>): Promise<void> {
-    // Önce notu bul (hem Elasticsearch _id hem custom id ile)
-    const note = await this.getNoteById(noteId);
-    if (!note) {
-      throw new Error("Not bulunamadı");
+  // Eski fonksiyon (geriye dönük uyumluluk için)
+  async createNoteWithAI(
+    userId: string,
+    content: string,
+    title: string,
+    summary: string,
+    language?: string,
+    wordCount?: number,
+    aiMetadata?: {
+      ai_title?: string;
+      ai_summary?: string;
+      ai_suggested?: boolean;
     }
+  ): Promise<Note> {
+    const options: CreateNoteOptions = {
+      userId,
+      content,
+      title,
+      summary,
+      language,
+      wordCount,
+    };
 
-    // Elasticsearch _id'sini al
-    const elasticId = note._id || noteId;
-
-    // İçerik analizi
-    if (updates.content) {
-      updates.title =
-        updates.title || (await this.generateTitleWithElastic(updates.content));
-      updates.summary = await this.generateSummaryWithElastic(updates.content);
-      updates.keywords = await this.extractKeywordsWithElastic(updates.content);
-      updates.metadata = {
-        wordCount: updates.content.split(/\s+/).filter((w) => w.length > 0)
-          .length,
-        language: "tr",
-        sentiment: await this.analyzeSentiment(updates.content),
-        lastEdited: new Date().toISOString(),
+    if (aiMetadata) {
+      options.aiSuggestions = {
+        suggestedTitle: aiMetadata.ai_title || title,
+        suggestedSummary: aiMetadata.ai_summary || summary,
+        language: language || "tr",
+        wordCount:
+          wordCount || content.split(/\s+/).filter((w) => w.length > 0).length,
       };
     }
 
-    // Elasticsearch'e update gönder (_id ile)
+    return this.createNoteWithAIMetadata(options);
+  }
+
+  // Orijinal createNote (AI olmadan)
+  async createNote(userId: string, content: string): Promise<Note> {
+    const title = await this.generateTitleWithElastic(content);
+    const summary = await this.generateSummaryWithElastic(content);
+
+    return this.createNoteWithAIMetadata({
+      userId,
+      content,
+      title,
+      summary,
+    });
+  }
+
+  // Not güncelleme (başlık, özet, içerik)
+  async updateNote(options: UpdateNoteOptions): Promise<Note> {
+    const { noteId, title, summary, content, isEditedByUser = true } = options;
+
+    // Önce notu bul
+    const existingNote = await this.getNoteById(noteId);
+    if (!existingNote) {
+      throw new Error("Not bulunamadı");
+    }
+
+    const elasticId = existingNote._id || noteId;
+    const updates: any = {
+      metadata: {
+        ...existingNote.metadata,
+        lastEdited: new Date().toISOString(),
+      },
+    };
+
+    // İçerik değiştiyse analiz yap
+    if (content) {
+      updates.content = content;
+      updates.keywords = await this.extractKeywordsWithElastic(content);
+      updates.metadata = {
+        ...updates.metadata,
+        wordCount: content.split(/\s+/).filter((w) => w.length > 0).length,
+        sentiment: await this.analyzeSentiment(content),
+        readabilityScore: await this.calculateReadability(content),
+      };
+
+      // Eğer başlık veya özet sağlanmadıysa, otomatik oluştur
+      if (!title) {
+        updates.title = await this.generateTitleWithElastic(content);
+      }
+      if (!summary) {
+        updates.summary = await this.generateSummaryWithElastic(content);
+      }
+    }
+
+    // Başlık güncelleme
+    if (title) {
+      updates.title = title;
+
+      // AI metadata varsa, kullanıcı düzenledi mi kontrol et
+      if (existingNote.metadata?.aiMetadata) {
+        updates.metadata = {
+          ...updates.metadata,
+          aiMetadata: {
+            ...existingNote.metadata.aiMetadata,
+            userEdited:
+              isEditedByUser || existingNote.metadata.aiMetadata.userEdited,
+            editedAt: new Date().toISOString(),
+          },
+        };
+      }
+    }
+
+    // Özet güncelleme
+    if (summary) {
+      updates.summary = summary;
+
+      // AI metadata varsa, kullanıcı düzenledi mi kontrol et
+      if (existingNote.metadata?.aiMetadata) {
+        updates.metadata = {
+          ...updates.metadata,
+          aiMetadata: {
+            ...existingNote.metadata.aiMetadata,
+            userEdited:
+              isEditedByUser || existingNote.metadata.aiMetadata.userEdited,
+            editedAt: new Date().toISOString(),
+          },
+        };
+      }
+    }
+
+    // Elasticsearch'e update gönder
     await this.request(`/notes/_update/${elasticId}`, {
       method: "POST",
       body: JSON.stringify({
         doc: updates,
-        doc_as_upsert: true,
       }),
     });
+
+    // Güncellenmiş notu getir
+    return this.getNoteById(noteId) as Promise<Note>;
   }
 
-  // Elasticsearch ile başlık oluşturma (simülasyon)
+  // Elasticsearch ile başlık oluşturma
   private async generateTitleWithElastic(content: string): Promise<string> {
-    // Gerçek uygulamada Elasticsearch'in analyze API'si kullanılır
     const sentences = content.split(/[.!?]+/);
     if (sentences.length > 0) {
       const firstSentence = sentences[0].trim();
-      // İlk cümleyi kısalt ve anlamlı hale getir
       if (firstSentence.length > 60) {
         return firstSentence.substring(0, 60) + "...";
       }
       return firstSentence;
     }
 
-    // Anahtar kelimelerden başlık oluştur
     const keywords = await this.extractKeywordsWithElastic(content);
     if (keywords.length > 0) {
       return keywords.slice(0, 3).join(", ") + " hakkında not";
@@ -142,28 +322,7 @@ class ElasticsearchNoteAPI {
     return "Yeni Not";
   }
 
-  // Elasticsearch ile gelişmiş analiz
-  private async analyzeContentWithElastic(content: string): Promise<{
-    suggestedTitle: string;
-    suggestedKeywords: string[];
-    sentiment: number;
-    readabilityScore: number;
-  }> {
-    // Gerçek uygulamada Elasticsearch API'si kullanılır
-    const firstSentence = content.split(/[.!?]+/)[0];
-
-    return {
-      suggestedTitle:
-        firstSentence.length > 60
-          ? firstSentence.substring(0, 60) + "..."
-          : firstSentence,
-      suggestedKeywords: this.extractKeywordsWithElastic(content),
-      sentiment: 0, // Gerçek uygulamada sentiment API
-      readabilityScore: Math.min(100, Math.max(0, 100 - content.length / 100)),
-    };
-  }
-
-  // Elasticsearch ile özet oluşturma (simülasyon)
+  // Elasticsearch ile özet oluşturma
   private async generateSummaryWithElastic(content: string): Promise<string> {
     const sentences = content
       .split(/[.!?]+/)
@@ -172,7 +331,6 @@ class ElasticsearchNoteAPI {
     if (sentences.length === 0) return content.substring(0, 100) + "...";
     if (sentences.length === 1) return sentences[0].substring(0, 150) + "...";
 
-    // İlk ve son cümleyi al (genellikle en önemli bilgiler)
     const summary = sentences[0] + "... " + sentences[sentences.length - 1];
     return summary.length > 200 ? summary.substring(0, 200) + "..." : summary;
   }
@@ -200,6 +358,16 @@ class ElasticsearchNoteAPI {
       "mı",
       "mu",
       "mü",
+      "the",
+      "and",
+      "or",
+      "but",
+      "for",
+      "with",
+      "that",
+      "this",
+      "these",
+      "those",
     ]);
 
     const words = content
@@ -208,7 +376,6 @@ class ElasticsearchNoteAPI {
       .split(/\s+/)
       .filter((word) => word.length > 3 && !stopWords.has(word));
 
-    // Basit TF-IDF benzeri skorlama
     const wordFrequency: Record<string, number> = {};
     words.forEach((word) => {
       wordFrequency[word] = (wordFrequency[word] || 0) + 1;
@@ -220,7 +387,7 @@ class ElasticsearchNoteAPI {
       .map(([word]) => word);
   }
 
-  // Sentiment analizi (basit)
+  // Sentiment analizi
   private async analyzeSentiment(text: string): Promise<number> {
     const positiveWords = [
       "iyi",
@@ -229,6 +396,13 @@ class ElasticsearchNoteAPI {
       "mükemmel",
       "sevindim",
       "mutlu",
+      "başarılı",
+      "good",
+      "great",
+      "excellent",
+      "happy",
+      "successful",
+      "perfect",
     ];
     const negativeWords = [
       "kötü",
@@ -237,6 +411,13 @@ class ElasticsearchNoteAPI {
       "problem",
       "hata",
       "kızgın",
+      "başarısız",
+      "bad",
+      "sad",
+      "problem",
+      "error",
+      "angry",
+      "failed",
     ];
 
     const lowerText = text.toLowerCase();
@@ -250,8 +431,25 @@ class ElasticsearchNoteAPI {
       if (lowerText.includes(word)) score -= 1;
     });
 
-    // -1 ile 1 arasında normalize et
     return Math.max(-1, Math.min(1, score / 10));
+  }
+
+  // Okunabilirlik puanı
+  private async calculateReadability(text: string): Promise<number> {
+    const words = text.split(/\s+/).filter((w) => w.length > 0).length;
+    const sentences = text
+      .split(/[.!?]+/)
+      .filter((s) => s.trim().length > 0).length;
+    const avgWordsPerSentence = sentences > 0 ? words / sentences : 0;
+
+    // Basit okunabilirlik formülü (yüksek puan = daha okunabilir)
+    let score = 100;
+    if (avgWordsPerSentence > 25) score -= 20;
+    if (avgWordsPerSentence > 35) score -= 20;
+    if (words > 500) score -= 10;
+    if (words > 1000) score -= 10;
+
+    return Math.max(0, Math.min(100, score));
   }
 
   // Elasticsearch ile gelişmiş arama
@@ -294,10 +492,10 @@ class ElasticsearchNoteAPI {
                       multi_match: {
                         query,
                         fields: [
-                          "content^3", // İçerik en önemli
-                          "title^2", // Başlık ikinci önemli
-                          "keywords^1.5", // Anahtar kelimeler
-                          "summary^1", // Özet
+                          "content^3",
+                          "title^2",
+                          "keywords^1.5",
+                          "summary^1",
                         ],
                         type: "best_fields",
                         fuzziness: "AUTO",
@@ -310,7 +508,7 @@ class ElasticsearchNoteAPI {
                       match_phrase: {
                         content: {
                           query,
-                          slop: 50, // Kelimeler arası maksimum mesafe
+                          slop: 50,
                           boost: 2,
                         },
                       },
@@ -319,7 +517,16 @@ class ElasticsearchNoteAPI {
                 },
               },
             ],
-            filter: [{ term: { isExpired: false } }],
+            filter: [
+              { term: { isExpired: false } },
+              {
+                range: {
+                  expiresAt: {
+                    gte: "now",
+                  },
+                },
+              },
+            ],
           },
         },
         highlight: {
@@ -336,20 +543,9 @@ class ElasticsearchNoteAPI {
             },
           },
         },
-        sort: [
-          { _score: { order: "desc" } }, // Relevance score
-          { createdAt: { order: "desc" } }, // Yeni notlar
-        ],
+        sort: [{ _score: { order: "desc" } }, { createdAt: { order: "desc" } }],
         from,
         size: pageSize,
-        aggs: {
-          keyword_suggestions: {
-            terms: {
-              field: "keywords.keyword",
-              size: 10,
-            },
-          },
-        },
       }),
     });
 
@@ -368,7 +564,7 @@ class ElasticsearchNoteAPI {
     };
   }
 
-  // Notları getir (expire olmayanlar)
+  // Notları getir
   async getNotes(
     userId: string,
     page = 1,
@@ -384,7 +580,7 @@ class ElasticsearchNoteAPI {
     const response = await this.request<{
       hits: {
         total: { value: number };
-        hits: Array<{ _source: Note }>;
+        hits: Array<{ _source: Note; _id: string }>;
       };
     }>("/notes/_search", {
       method: "POST",
@@ -397,7 +593,7 @@ class ElasticsearchNoteAPI {
               {
                 range: {
                   expiresAt: {
-                    gte: "now", // Süresi dolmamış notlar
+                    gte: "now",
                   },
                 },
               },
@@ -423,16 +619,13 @@ class ElasticsearchNoteAPI {
 
   // Not silme
   async deleteNote(noteId: string): Promise<void> {
-    // Önce notu bul (hem Elasticsearch _id hem custom id ile)
     const note = await this.getNoteById(noteId);
     if (!note) {
       throw new Error("Not bulunamadı");
     }
 
-    // Elasticsearch _id'sini al
     const elasticId = note._id || noteId;
 
-    // Elasticsearch'ten sil (_id ile)
     await this.request(`/notes/_doc/${elasticId}`, {
       method: "DELETE",
     });
@@ -451,7 +644,7 @@ class ElasticsearchNoteAPI {
       if (response.found) {
         return {
           ...response._source,
-          _id: response._id, // Elasticsearch ID'sini ekle
+          _id: response._id,
         };
       }
     } catch (error) {
@@ -460,7 +653,6 @@ class ElasticsearchNoteAPI {
       );
     }
 
-    // Eğer Elasticsearch _id ile bulunamazsa, bizim id'ye göre ara
     return this.getNoteByCustomId(noteId);
   }
 
@@ -488,7 +680,7 @@ class ElasticsearchNoteAPI {
         const hit = response.hits.hits[0];
         return {
           ...hit._source,
-          _id: hit._id, // Elasticsearch ID'sini ekle
+          _id: hit._id,
         };
       }
       return null;
@@ -498,7 +690,7 @@ class ElasticsearchNoteAPI {
     }
   }
 
-  // Notları expire etme (cron job için)
+  // Notları expire etme
   async expireOldNotes(): Promise<number> {
     const response = await this.request<{
       updated: number;
@@ -529,6 +721,8 @@ class ElasticsearchNoteAPI {
     expiredNotes: number;
     avgWordsPerNote: number;
     lastUpdated: string;
+    aiGeneratedNotes: number;
+    userEditedNotes: number;
   }> {
     const response = await this.request<{
       aggregations: {
@@ -536,6 +730,8 @@ class ElasticsearchNoteAPI {
         active_notes: { doc_count: number };
         expired_notes: { doc_count: number };
         avg_words: { value: number };
+        ai_generated: { doc_count: number };
+        user_edited: { doc_count: number };
       };
       hits: {
         hits: Array<{
@@ -559,6 +755,16 @@ class ElasticsearchNoteAPI {
           avg_words: {
             avg: { field: "metadata.wordCount" },
           },
+          ai_generated: {
+            filter: {
+              exists: { field: "metadata.aiMetadata" },
+            },
+          },
+          user_edited: {
+            filter: {
+              term: { "metadata.aiMetadata.userEdited": true },
+            },
+          },
         },
         sort: [{ createdAt: { order: "desc" } }],
         size: 1,
@@ -572,6 +778,178 @@ class ElasticsearchNoteAPI {
       avgWordsPerNote: response.aggregations?.avg_words?.value || 0,
       lastUpdated:
         response.hits.hits[0]?._source?.createdAt || new Date().toISOString(),
+      aiGeneratedNotes: response.aggregations?.ai_generated?.doc_count || 0,
+      userEditedNotes: response.aggregations?.user_edited?.doc_count || 0,
+    };
+  }
+
+  // AI önerili notları getir
+  async getAINotes(
+    userId: string,
+    page = 1,
+    pageSize = 10
+  ): Promise<{
+    notes: Note[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const from = (page - 1) * pageSize;
+
+    const response = await this.request<{
+      hits: {
+        total: { value: number };
+        hits: Array<{ _source: Note; _id: string }>;
+      };
+    }>("/notes/_search", {
+      method: "POST",
+      body: JSON.stringify({
+        query: {
+          bool: {
+            must: [
+              { term: { userId } },
+              { exists: { field: "metadata.aiMetadata" } },
+            ],
+            filter: [
+              { term: { isExpired: false } },
+              {
+                range: {
+                  expiresAt: {
+                    gte: "now",
+                  },
+                },
+              },
+            ],
+          },
+        },
+        sort: [{ createdAt: { order: "desc" } }],
+        from,
+        size: pageSize,
+      }),
+    });
+
+    return {
+      notes: response.hits.hits.map((hit) => ({
+        ...hit._source,
+        _id: hit._id,
+      })),
+      total: response.hits.total.value,
+      page,
+      pageSize,
+    };
+  }
+
+  // Kullanıcı tarafından düzenlenmiş AI notları
+  async getUserEditedAINotes(
+    userId: string,
+    page = 1,
+    pageSize = 10
+  ): Promise<{
+    notes: Note[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const from = (page - 1) * pageSize;
+
+    const response = await this.request<{
+      hits: {
+        total: { value: number };
+        hits: Array<{ _source: Note; _id: string }>;
+      };
+    }>("/notes/_search", {
+      method: "POST",
+      body: JSON.stringify({
+        query: {
+          bool: {
+            must: [
+              { term: { userId } },
+              { exists: { field: "metadata.aiMetadata" } },
+              { term: { "metadata.aiMetadata.userEdited": true } },
+            ],
+            filter: [
+              { term: { isExpired: false } },
+              {
+                range: {
+                  expiresAt: {
+                    gte: "now",
+                  },
+                },
+              },
+            ],
+          },
+        },
+        sort: [{ "metadata.aiMetadata.editedAt": { order: "desc" } }],
+        from,
+        size: pageSize,
+      }),
+    });
+
+    return {
+      notes: response.hits.hits.map((hit) => ({
+        ...hit._source,
+        _id: hit._id,
+      })),
+      total: response.hits.total.value,
+      page,
+      pageSize,
+    };
+  }
+
+  // Dil bazlı notları getir
+  async getNotesByLanguage(
+    userId: string,
+    language: string,
+    page = 1,
+    pageSize = 10
+  ): Promise<{
+    notes: Note[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const from = (page - 1) * pageSize;
+
+    const response = await this.request<{
+      hits: {
+        total: { value: number };
+        hits: Array<{ _source: Note; _id: string }>;
+      };
+    }>("/notes/_search", {
+      method: "POST",
+      body: JSON.stringify({
+        query: {
+          bool: {
+            must: [
+              { term: { userId } },
+              { term: { "metadata.language.keyword": language } },
+            ],
+            filter: [
+              { term: { isExpired: false } },
+              {
+                range: {
+                  expiresAt: {
+                    gte: "now",
+                  },
+                },
+              },
+            ],
+          },
+        },
+        sort: [{ createdAt: { order: "desc" } }],
+        from,
+        size: pageSize,
+      }),
+    });
+
+    return {
+      notes: response.hits.hits.map((hit) => ({
+        ...hit._source,
+        _id: hit._id,
+      })),
+      total: response.hits.total.value,
+      page,
+      pageSize,
     };
   }
 }

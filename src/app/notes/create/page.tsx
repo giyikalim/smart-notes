@@ -1,9 +1,11 @@
 "use client";
 
+import { getAISuggestion } from "@/lib/ai-helper";
 import { useAuth } from "@/lib/auth";
 import { noteAPI } from "@/lib/elasticsearch-client";
+import debounce from "lodash/debounce";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function CreateNotePage() {
@@ -11,20 +13,86 @@ export default function CreateNotePage() {
   const router = useRouter();
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [titlePreview, setTitlePreview] = useState("");
+  const [isAILoading, setIsAILoading] = useState(false);
+
+  // Kullanıcının girdiği başlık ve özet
+  const [userTitle, setUserTitle] = useState("");
+  const [userSummary, setUserSummary] = useState("");
+
+  // AI önerileri
+  const [aiSuggestions, setAiSuggestions] = useState<{
+    suggestedTitle: string;
+    suggestedSummary: string;
+    language: string;
+    wordCount: number;
+  } | null>(null);
+
+  // Edit modları
+  const [isTitleEditing, setIsTitleEditing] = useState(false);
+  const [isSummaryEditing, setIsSummaryEditing] = useState(false);
+
+  // Debounced AI suggestion
+  const getAISuggestions = useCallback(
+    debounce(async (text: string) => {
+      if (text.length < 30) {
+        setAiSuggestions(null);
+        return;
+      }
+
+      setIsAILoading(true);
+      try {
+        const suggestion = await getAISuggestion(text);
+
+        if (suggestion.success) {
+          const aiSuggestion = {
+            suggestedTitle: suggestion.title,
+            suggestedSummary: suggestion.summary,
+            language: suggestion.language,
+            wordCount: suggestion.wordCount,
+          };
+
+          setAiSuggestions(aiSuggestion);
+
+          // Kullanıcı düzenlemediyse AI önerisini göster
+          if (!userTitle) setUserTitle(aiSuggestion.suggestedTitle);
+          if (!userSummary) setUserSummary(aiSuggestion.suggestedSummary);
+
+          const languageEmoji = suggestion.language === "tr" ? "🇹🇷" : "🇬🇧";
+          toast.success(`${languageEmoji} AI başlık ve özet oluşturuldu!`, {
+            duration: 2000,
+          });
+        }
+      } catch (error) {
+        console.error("AI suggestion error:", error);
+        toast.error("AI servisi geçici olarak kullanılamıyor", {
+          duration: 3000,
+        });
+      } finally {
+        setIsAILoading(false);
+      }
+    }, 1500),
+    []
+  );
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setContent(text);
 
-    // Başlık önizlemesi oluştur
-    if (text.trim()) {
+    if (text.trim() && text.length >= 30) {
+      getAISuggestions(text);
+    } else if (text.trim()) {
+      // Kısa içerik için basit başlık
       const firstLine = text.split("\n")[0];
-      setTitlePreview(
-        firstLine.length > 50 ? firstLine.substring(0, 50) + "..." : firstLine
-      );
+      const simpleTitle =
+        firstLine.length > 50 ? firstLine.substring(0, 50) + "..." : firstLine;
+
+      if (!userTitle) setUserTitle(simpleTitle);
+      if (!userSummary) setUserSummary("");
+      setAiSuggestions(null);
     } else {
-      setTitlePreview("");
+      setUserTitle("");
+      setUserSummary("");
+      setAiSuggestions(null);
     }
   };
 
@@ -36,15 +104,69 @@ export default function CreateNotePage() {
 
     setIsSubmitting(true);
     try {
-      const note = await noteAPI.createNote(user.id, content);
-      toast.success("Not başarıyla oluşturuldu!");
-      //router.push(`/notes/${note.id}`);
+      // Final başlık ve özet: Kullanıcı düzenlediyse onu, yoksa AI önerisini kullan
+      const finalTitle =
+        userTitle ||
+        aiSuggestions?.suggestedTitle ||
+        content.split("\n")[0].substring(0, 60) +
+          (content.split("\n")[0].length > 60 ? "..." : "");
+
+      const finalSummary =
+        userSummary ||
+        aiSuggestions?.suggestedSummary ||
+        content.substring(0, 200) + (content.length > 200 ? "..." : "");
+
+      // Elasticsearch'e kaydet
+      const note = await noteAPI.createNoteWithAIMetadata({
+        userId: user.id,
+        content,
+        title: finalTitle,
+        summary: finalSummary,
+        language: aiSuggestions?.language || "tr",
+        wordCount: aiSuggestions?.wordCount,
+        aiSuggestions: aiSuggestions
+          ? {
+              suggestedTitle: aiSuggestions.suggestedTitle,
+              suggestedSummary: aiSuggestions.suggestedSummary,
+              language: aiSuggestions.language,
+              wordCount: aiSuggestions.wordCount,
+            }
+          : undefined,
+      });
+
+      // Kullanıcı AI önerisini değiştirdi mi?
+      const isEdited = userTitle && userTitle !== aiSuggestions?.suggestedTitle;
+
+      toast.success(
+        `📝 Not başarıyla ${isEdited ? "düzenlenerek " : ""}kaydedildi!`,
+        {
+          duration: 3000,
+          icon: isEdited ? "✏️" : "🤖",
+        }
+      );
+
+      router.push(`/notes/${note._id}`);
     } catch (error) {
       console.error("Not oluşturma hatası:", error);
-      toast.error("Not kaydedilemedi. Lütfen tekrar deneyin.");
+      toast.error("Not kaydedilemedi. Lütfen tekrar deneyin.", {
+        duration: 4000,
+      });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const resetToAI = () => {
+    if (aiSuggestions) {
+      setUserTitle(aiSuggestions.suggestedTitle);
+      setUserSummary(aiSuggestions.suggestedSummary);
+      toast.success("AI önerilerine geri dönüldü!", { duration: 1500 });
+    }
+  };
+
+  const copyToClipboard = (text: string, type: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${type} panoya kopyalandı!`, { duration: 1500 });
   };
 
   return (
@@ -59,7 +181,7 @@ export default function CreateNotePage() {
                   Yeni Not Oluştur
                 </h1>
                 <p className="text-blue-100 mt-1">
-                  Elasticsearch otomatik başlık ve analiz oluşturacak
+                  AI önerilerini kabul edin veya kendiniz düzenleyin
                 </p>
               </div>
               <button
@@ -73,32 +195,179 @@ export default function CreateNotePage() {
 
           {/* Content */}
           <div className="p-8">
-            {/* Title Preview */}
-            {titlePreview && (
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 className="text-sm font-medium text-blue-800 mb-1">
-                  Elasticsearch Başlık Önerisi:
-                </h3>
-                <p className="text-lg font-semibold text-gray-800">
-                  "{titlePreview}"
-                </p>
+            {/* Başlık Editörü */}
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Başlık {aiSuggestions && "✏️"}
+                </label>
+                <div className="flex items-center space-x-2">
+                  {aiSuggestions && (
+                    <button
+                      onClick={() => setIsTitleEditing(!isTitleEditing)}
+                      className="text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                    >
+                      {isTitleEditing ? "✅ Kaydet" : "✏️ Düzenle"}
+                    </button>
+                  )}
+                  {aiSuggestions &&
+                    userTitle !== aiSuggestions.suggestedTitle && (
+                      <button
+                        onClick={resetToAI}
+                        className="text-xs text-gray-600 hover:text-gray-800 transition-colors"
+                      >
+                        ↺ AI Önerisine Dön
+                      </button>
+                    )}
+                </div>
+              </div>
+
+              {isTitleEditing ? (
+                <input
+                  type="text"
+                  value={userTitle}
+                  onChange={(e) => setUserTitle(e.target.value)}
+                  className="w-full p-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                  placeholder="Başlığı düzenleyin..."
+                  autoFocus
+                />
+              ) : (
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center mb-1">
+                        <span className="text-xs font-medium text-blue-800 mr-2">
+                          {aiSuggestions ? "🤖 AI Önerisi" : "📝 Başlık"}
+                        </span>
+                        {aiSuggestions && (
+                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                            {aiSuggestions.language === "tr"
+                              ? "🇹🇷 Türkçe"
+                              : "🇬🇧 English"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-lg font-semibold text-gray-800">
+                        {userTitle || "Başlık yükleniyor..."}
+                      </p>
+                    </div>
+                    {aiSuggestions && (
+                      <button
+                        onClick={() => copyToClipboard(userTitle, "Başlık")}
+                        className="text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                        title="Kopyala"
+                      >
+                        📋
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Özet Editörü */}
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Özet {aiSuggestions && "✏️"}
+                </label>
+                {aiSuggestions && (
+                  <button
+                    onClick={() => setIsSummaryEditing(!isSummaryEditing)}
+                    className="text-xs text-green-600 hover:text-green-800 transition-colors"
+                  >
+                    {isSummaryEditing ? "✅ Kaydet" : "✏️ Düzenle"}
+                  </button>
+                )}
+              </div>
+
+              {isSummaryEditing ? (
+                <textarea
+                  value={userSummary}
+                  onChange={(e) => setUserSummary(e.target.value)}
+                  className="w-full p-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  placeholder="Özeti düzenleyin..."
+                  rows={3}
+                  autoFocus
+                />
+              ) : (
+                <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center mb-1">
+                        <span className="text-xs font-medium text-green-800 mr-2">
+                          {aiSuggestions ? "🤖 AI Önerisi" : "📋 Özet"}
+                        </span>
+                      </div>
+                      <p className="text-gray-700 leading-relaxed">
+                        {userSummary ||
+                          (aiSuggestions ? "Özet yükleniyor..." : "")}
+                      </p>
+                    </div>
+                    {aiSuggestions && userSummary && (
+                      <button
+                        onClick={() => copyToClipboard(userSummary, "Özet")}
+                        className="text-xs text-green-600 hover:text-green-800 transition-colors"
+                        title="Kopyala"
+                      >
+                        📋
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* AI Bilgisi */}
+            {aiSuggestions && (
+              <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center space-x-4">
+                    <span className="text-gray-600">
+                      🤖 AI analizi tamamlandı
+                    </span>
+                    <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 rounded">
+                      📊 {aiSuggestions.wordCount} kelime
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      ⚡ Cloudflare Edge
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {userTitle !== aiSuggestions.suggestedTitle ||
+                    userSummary !== aiSuggestions.suggestedSummary
+                      ? "✏️ Kullanıcı tarafından düzenlendi"
+                      : "✅ AI önerisi kullanılıyor"}
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Editor */}
+            {/* Not İçeriği */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Not İçeriği *
-              </label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Not İçeriği *
+                </label>
+                <div className="flex items-center space-x-2">
+                  {isAILoading && (
+                    <div className="flex items-center text-xs text-blue-600">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
+                      AI analiz ediyor...
+                    </div>
+                  )}
+                  <span className="text-xs text-gray-500">
+                    {content.length > 30
+                      ? "🤖 AI analiz ediyor..."
+                      : "En az 30 karakter yazın"}
+                  </span>
+                </div>
+              </div>
               <textarea
                 value={content}
                 onChange={handleContentChange}
-                placeholder="Notunuzu buraya yazın... Elasticsearch otomatik olarak:
-• Anlamlı bir başlık oluşturacak
-• Anahtar kelimeleri çıkaracak
-• İçeriği analiz edecek
-• 3 ay sonra otomatik expire olacak"
-                className="w-full h-96 p-4 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 placeholder-gray-400"
+                placeholder="Notunuzu buraya yazın..."
+                className="w-full h-64 p-4 border-2 border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 transition-all"
                 disabled={isSubmitting}
                 autoFocus
               />
@@ -121,12 +390,20 @@ export default function CreateNotePage() {
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-gray-800">3 Ay</div>
-                  <div className="text-xs text-gray-500">Expire Süresi</div>
+                  <div className="text-xs text-gray-500">Expire</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-800">
+                    {aiSuggestions ? "✅" : "⏳"}
+                  </div>
+                  <div className="text-xs text-gray-500">AI Durumu</div>
                 </div>
               </div>
 
               <div className="text-sm text-gray-500">
-                📝 Elasticsearch ile analiz edilecek
+                {aiSuggestions
+                  ? `🤖 ${aiSuggestions.language === "tr" ? "Türkçe" : "İngilizce"} AI Analizi`
+                  : "📝 Elasticsearch"}
               </div>
             </div>
 
@@ -142,29 +419,11 @@ export default function CreateNotePage() {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !content.trim()}
-                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center transition-all"
+                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center transition-all shadow-md hover:shadow-lg"
               >
                 {isSubmitting ? (
                   <>
-                    <svg
-                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
                     Elasticsearch'e Kaydediliyor...
                   </>
                 ) : (
@@ -182,7 +441,12 @@ export default function CreateNotePage() {
                         d="M5 13l4 4L19 7"
                       />
                     </svg>
-                    Elasticsearch'e Kaydet
+                    {aiSuggestions
+                      ? userTitle !== aiSuggestions.suggestedTitle ||
+                        userSummary !== aiSuggestions.suggestedSummary
+                        ? "✏️ Düzenlenmiş Olarak Kaydet"
+                        : "🤖 AI ile Kaydet"
+                      : "📝 Not Oluştur"}
                   </>
                 )}
               </button>
@@ -190,36 +454,34 @@ export default function CreateNotePage() {
           </div>
         </div>
 
-        {/* Features */}
+        {/* Özellikler */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm">
-            <div className="text-blue-600 text-2xl mb-3">🔍</div>
-            <h3 className="font-semibold text-gray-800 mb-2">Akıllı Arama</h3>
-            <p className="text-gray-600 text-sm">
-              Elasticsearch sayesinde notlarınızda tam metin arama yapabilir, en
-              alakalı sonuçları sıralayabilirsiniz.
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-xl shadow-sm">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100 hover:border-blue-300 transition-colors">
             <div className="text-blue-600 text-2xl mb-3">🤖</div>
-            <h3 className="font-semibold text-gray-800 mb-2">
-              Otomatik Başlık
-            </h3>
+            <h3 className="font-semibold text-gray-800 mb-2">AI Metadata</h3>
             <p className="text-gray-600 text-sm">
-              Elasticsearch içeriğinizi analiz ederek otomatik olarak anlamlı
-              bir başlık oluşturur.
+              AI önerileri Elasticsearch'te saklanır. Kullanıcı düzenlemeleri
+              izlenir.
             </p>
           </div>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm">
-            <div className="text-blue-600 text-2xl mb-3">⏰</div>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-green-100 hover:border-green-300 transition-colors">
+            <div className="text-green-600 text-2xl mb-3">✏️</div>
             <h3 className="font-semibold text-gray-800 mb-2">
-              Otomatik Expire
+              Esnek Düzenleme
             </h3>
             <p className="text-gray-600 text-sm">
-              Notlarınız 3 ay sonra otomatik olarak expire olur. Süresiz
-              saklamak isterseniz güncelleyebilirsiniz.
+              Başlık ve özeti AI önerisinden bağımsız olarak
+              düzenleyebilirsiniz.
+            </p>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-purple-100 hover:border-purple-300 transition-colors">
+            <div className="text-purple-600 text-2xl mb-3">📊</div>
+            <h3 className="font-semibold text-gray-800 mb-2">Analitik</h3>
+            <p className="text-gray-600 text-sm">
+              Kelime sayısı, dil tespiti, sentiment analizi ile kapsamlı
+              metadata.
             </p>
           </div>
         </div>

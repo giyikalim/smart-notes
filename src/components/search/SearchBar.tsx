@@ -50,7 +50,7 @@ export default function SearchBar({
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           onKeyDown={handleKeyDown}
-          placeholder="Notlarınızda arama yapın... (Elasticsearch gücüyle)"
+          placeholder="Notlarınızda arama yapın..."
           className="w-full pl-12 pr-10 py-3 bg-white border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:border-blue-500 text-gray-700 placeholder-gray-400"
           autoFocus={autoFocus}
         />
