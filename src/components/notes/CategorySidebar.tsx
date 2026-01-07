@@ -112,15 +112,15 @@ export default function CategorySidebar({
         <div className="space-y-2">
           <div className="flex items-center text-sm">
             <div className="w-3 h-3 rounded-full bg-blue-100 border border-blue-300 mr-2"></div>
-            <span className="text-gray-600">Alışveriş</span>
+            <span className="text-gray-600 dark:text-gray-400">Alışveriş</span>
           </div>
           <div className="flex items-center text-sm">
             <div className="w-3 h-3 rounded-full bg-green-100 border border-green-300 mr-2"></div>
-            <span className="text-gray-600">İş</span>
+            <span className="text-gray-600 dark:text-gray-400">İş</span>
           </div>
           <div className="flex items-center text-sm">
             <div className="w-3 h-3 rounded-full bg-purple-100 border border-purple-300 mr-2"></div>
-            <span className="text-gray-600">Kişisel</span>
+            <span className="text-gray-600 dark:text-gray-400">Kişisel</span>
           </div>
         </div>
       </div>
