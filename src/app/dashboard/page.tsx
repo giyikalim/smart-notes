@@ -4,6 +4,7 @@ import UserMenu from "@/components/auth/UserMenu";
 import QuickStats from "@/components/dashboard/QuickStats";
 import NoteList from "@/components/notes/NoteList";
 import SearchBar from "@/components/search/SearchBar";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useProtectedRoute } from "@/lib/auth";
 import { useState } from "react";
 
@@ -13,24 +14,24 @@ export default function DashboardPage() {
 
   if (isLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/30">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-background/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">
                   📚 Elastic Notes
                 </h1>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Elasticsearch ile akıllı not organizasyonu
                 </p>
               </div>
@@ -41,7 +42,10 @@ export default function DashboardPage() {
               <SearchBar onSearch={setSearchQuery} />
             </div>
 
-            <UserMenu />
+            <div className="flex items-center gap-4">
+              <ThemeToggle />
+              <UserMenu />
+            </div>
           </div>
         </div>
       </header>
@@ -53,21 +57,21 @@ export default function DashboardPage() {
             <QuickStats userId={user.id} />
 
             {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
-              <h3 className="font-semibold text-gray-800 mb-4">
+            <div className="bg-card rounded-xl border shadow-sm p-6 mt-6">
+              <h3 className="font-semibold text-foreground mb-4">
                 Hızlı Eylemler
               </h3>
               <div className="space-y-3">
                 <a
                   href="/notes/create"
-                  className="block w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-center rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all font-medium"
+                  className="block w-full px-4 py-3 bg-gradient-to-r from-primary to-blue-600 text-primary-foreground text-center rounded-lg hover:from-primary/90 hover:to-blue-700 transition-all font-medium"
                 >
                   + Yeni Not Oluştur
                 </a>
-                <button className="block w-full px-4 py-3 bg-gray-100 text-gray-700 text-center rounded-lg hover:bg-gray-200 transition-colors">
+                <button className="block w-full px-4 py-3 bg-secondary text-secondary-foreground text-center rounded-lg hover:bg-secondary/80 transition-colors">
                   🗂️ Tüm Notlarım
                 </button>
-                <button className="block w-full px-4 py-3 bg-gray-100 text-gray-700 text-center rounded-lg hover:bg-gray-200 transition-colors">
+                <button className="block w-full px-4 py-3 bg-secondary text-secondary-foreground text-center rounded-lg hover:bg-secondary/80 transition-colors">
                   🔍 Gelişmiş Arama
                 </button>
               </div>
@@ -76,15 +80,15 @@ export default function DashboardPage() {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
+            <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-border">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold text-gray-800">
+                  <h2 className="text-xl font-semibold text-foreground">
                     {searchQuery
                       ? `"${searchQuery}" için sonuçlar`
                       : "Son Notlarım"}
                   </h2>
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-muted-foreground">
                     Elasticsearch ile sıralanmıştır
                   </span>
                 </div>
