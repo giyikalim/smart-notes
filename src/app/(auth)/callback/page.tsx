@@ -83,7 +83,7 @@ export default function AuthCallbackPage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full p-8 bg-white rounded-lg shadow">
+        <div className="max-w-md w-full p-8 bg-white dark:bg-gray-900 rounded-lg shadow">
           <div className="text-center">
             <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
               <svg

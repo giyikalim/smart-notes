@@ -56,7 +56,7 @@ export default function LoginPage() {
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10">
+        <div className="bg-white dark:bg-gray-900 py-8 px-4 shadow-xl rounded-lg sm:px-10">
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">
@@ -76,7 +76,7 @@ export default function LoginPage() {
                   <div className="w-full border-t border-gray-300" />
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">
+                  <span className="px-2 bg-white dark:bg-gray-900 text-gray-500">
                     Özellikler
                   </span>
                 </div>

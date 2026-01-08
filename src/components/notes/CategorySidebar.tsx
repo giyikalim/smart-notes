@@ -54,7 +54,7 @@ export default function CategorySidebar({
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
         <h3 className="font-semibold text-gray-800 mb-3">Kategoriler</h3>
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
@@ -69,7 +69,7 @@ export default function CategorySidebar({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow p-4">
+    <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-gray-800">Kategoriler</h3>
         <button
@@ -96,7 +96,7 @@ export default function CategorySidebar({
             <div className="flex items-center justify-between">
               <span className="font-medium">{category}</span>
               {category === "Tümü" && (
-                <span className="text-xs bg-white px-2 py-1 rounded-full">
+                <span className="text-xs bg-white dark:bg-gray-900 px-2 py-1 rounded-full">
                   {categories.length - 1}
                 </span>
               )}

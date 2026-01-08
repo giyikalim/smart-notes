@@ -14,7 +14,7 @@ export default function DashboardPage() {
 
   if (isLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -23,7 +23,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/30">
       {/* Header */}
-      <header className="bg-background/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
+      <header className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
             <div className="flex items-center">
@@ -58,7 +58,7 @@ export default function DashboardPage() {
 
             {/* Quick Actions */}
             <div className="bg-card rounded-xl border shadow-sm p-6 mt-6">
-              <h3 className="font-semibold text-foreground mb-4">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">
                 Hızlı Eylemler
               </h3>
               <div className="space-y-3">
@@ -81,9 +81,9 @@ export default function DashboardPage() {
           {/* Main Content */}
           <div className="lg:col-span-3">
             <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-border">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold text-foreground">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                     {searchQuery
                       ? `"${searchQuery}" için sonuçlar`
                       : "Son Notlarım"}

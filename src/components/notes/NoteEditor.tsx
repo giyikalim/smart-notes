@@ -106,7 +106,7 @@ export default function NoteEditor({ onNoteCreated }: NoteEditorProps) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6 mb-6">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-gray-800">Yeni Not Ekle</h3>
         <p className="text-sm text-gray-600">

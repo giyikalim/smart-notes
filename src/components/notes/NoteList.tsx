@@ -32,7 +32,6 @@ interface NoteListProps {
   searchQuery?: string;
 }
 
-// Infinite scroll için kullanılacak hook
 const useInfiniteScroll = (callback: () => void) => {
   const observerRef = useRef<IntersectionObserver>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -68,7 +67,6 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const router = useRouter();
 
-  // Infinite scroll için query
   const {
     data,
     fetchNextPage,
@@ -96,23 +94,19 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
     enabled: !!user,
   });
 
-  // Infinite scroll için callback
   const loadMoreRef = useInfiniteScroll(() => {
     if (hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
   });
 
-  // Notları düzleştirilmiş bir array olarak al
   const allNotes = data?.pages.flatMap((page) => page.notes) || [];
 
-  // Not tıklama işlemi
   const handleNoteClick = (note: Note) => {
     setSelectedNote(note);
     router.push(`/notes/${note._id}`);
   };
 
-  // Not silme
   const handleDeleteNote = async (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -134,13 +128,11 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
     }
   };
 
-  // Not düzenleme sayfasına yönlendirme
   const handleEditNote = (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     router.push(`/notes/${noteId}/edit`);
   };
 
-  // Format tarih
   const formatDate = (dateString: string) => {
     return formatDistanceToNow(new Date(dateString), {
       addSuffix: true,
@@ -148,12 +140,12 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
     });
   };
 
-  // Expire durumu kontrolü
   const getExpireStatus = (expiresAt: string, isExpired: boolean) => {
     if (isExpired) {
       return {
         text: "Süresi Doldu",
-        color: "bg-red-100 text-red-800 border border-red-200",
+        color:
+          "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800",
         icon: <Clock className="w-3 h-3 mr-1" />,
       };
     }
@@ -165,46 +157,52 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
     if (daysLeft <= 0) {
       return {
         text: "Bugün Doluyor",
-        color: "bg-red-100 text-red-800 border border-red-200",
+        color:
+          "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800",
         icon: <AlertTriangle className="w-3 h-3 mr-1" />,
       };
     }
     if (daysLeft <= 3) {
       return {
         text: `${daysLeft} gün kaldı`,
-        color: "bg-yellow-100 text-yellow-800 border border-yellow-200",
+        color:
+          "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800",
         icon: <Clock className="w-3 h-3 mr-1" />,
       };
     }
     if (daysLeft <= 7) {
       return {
         text: `${daysLeft} gün kaldı`,
-        color: "bg-blue-100 text-blue-800 border border-blue-200",
+        color:
+          "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800",
         icon: <Calendar className="w-3 h-3 mr-1" />,
       };
     }
 
     return {
       text: `${daysLeft} gün kaldı`,
-      color: "bg-green-100 text-green-800 border border-green-200",
+      color:
+        "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800",
       icon: <Check className="w-3 h-3 mr-1" />,
     };
   };
 
-  // Duygu durumu icon'u
   const getSentimentIcon = (sentiment?: number) => {
     if (sentiment === undefined) return null;
 
     if (sentiment > 0.3) {
-      return <Smile className="w-4 h-4 mr-1 text-green-600" />;
+      return (
+        <Smile className="w-4 h-4 mr-1 text-green-600 dark:text-green-400" />
+      );
     } else if (sentiment < -0.3) {
-      return <Frown className="w-4 h-4 mr-1 text-red-600" />;
+      return <Frown className="w-4 h-4 mr-1 text-red-600 dark:text-red-400" />;
     } else {
-      return <Meh className="w-4 h-4 mr-1 text-yellow-600" />;
+      return (
+        <Meh className="w-4 h-4 mr-1 text-yellow-600 dark:text-yellow-400" />
+      );
     }
   };
 
-  // Relevance score'dan yıldız oluştur
   const renderRelevanceStars = (score?: number) => {
     if (!score || score < 0.1) return null;
 
@@ -221,8 +219,8 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
             key={i}
             className={`w-4 h-4 ${
               i < stars
-                ? "fill-yellow-500 text-yellow-500"
-                : "fill-gray-200 text-gray-300"
+                ? "fill-yellow-500 text-yellow-500 dark:fill-yellow-400 dark:text-yellow-400"
+                : "fill-gray-200 text-gray-300 dark:fill-gray-700 dark:text-gray-600"
             }`}
           />
         ))}
@@ -230,7 +228,6 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
     );
   };
 
-  // Highlight edilmiş içeriği render et
   const renderHighlightedContent = (note: Note) => {
     // @ts-ignore - note._highlight geçici olarak ekliyoruz
     const highlight = note._highlight;
@@ -241,7 +238,7 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
           {highlight.content.map((fragment: string, index: number) => (
             <p
               key={index}
-              className="text-sm text-gray-600 mb-1"
+              className="text-sm text-gray-600 dark:text-gray-400 mb-1"
               dangerouslySetInnerHTML={{ __html: fragment }}
             />
           ))}
@@ -249,52 +246,49 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
       );
     }
 
-    // Highlight yoksa özeti göster
     return (
-      <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+      <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
         {note.summary || note.content.substring(0, 150)}...
       </p>
     );
   };
 
-  // Loading state
   if (isLoading && !allNotes.length) {
     return (
       <div className="space-y-4">
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 animate-pulse"
           >
             <div className="flex justify-between items-start mb-4">
               <div className="space-y-2 flex-1">
-                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
               </div>
-              <div className="h-8 w-8 bg-gray-200 rounded"></div>
+              <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
             </div>
-            <div className="h-3 bg-gray-200 rounded w-full mb-2"></div>
-            <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full mb-2"></div>
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
           </div>
         ))}
       </div>
     );
   }
 
-  // Error state
   if (isError) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
-        <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-red-800 mb-2">
+      <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-8 text-center">
+        <AlertCircle className="w-12 h-12 text-red-600 dark:text-red-400 mx-auto mb-4" />
+        <h3 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">
           Notlar yüklenemedi
         </h3>
-        <p className="text-red-600 mb-6">
+        <p className="text-red-600 dark:text-red-400 mb-6">
           Elasticsearch bağlantısında bir sorun olabilir.
         </p>
         <button
           onClick={() => refetch()}
-          className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center mx-auto"
+          className="px-6 py-3 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 transition-colors font-medium flex items-center justify-center mx-auto"
         >
           <RefreshCw className="w-5 h-5 mr-2" />
           Tekrar Dene
@@ -303,17 +297,16 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
     );
   }
 
-  // Empty state
   if (!isLoading && allNotes.length === 0) {
     return (
       <div className="text-center py-12">
-        <FileText className="w-16 h-16 text-gray-400 mx-auto mb-6" />
-        <h3 className="text-xl font-semibold text-gray-900 mb-3">
+        <FileText className="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-6" />
+        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
           {searchQuery
             ? `"${searchQuery}" için sonuç bulunamadı`
             : "Henüz notunuz yok"}
         </h3>
-        <p className="text-gray-600 mb-8 max-w-md mx-auto">
+        <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md mx-auto">
           {searchQuery
             ? "Farklı anahtar kelimelerle arama yapmayı deneyin veya Elasticsearch'in fuzziness özelliğinden faydalanın."
             : "İlk notunuzu oluşturarak Elasticsearch'in otomatik başlık ve özet özelliklerini deneyimleyin!"}
@@ -321,7 +314,7 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
         {!searchQuery && (
           <a
             href="/notes/create"
-            className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-medium"
+            className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-700 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 dark:hover:from-blue-800 dark:hover:to-indigo-800 transition-all font-medium"
           >
             <Plus className="w-5 h-5 mr-2" />
             Yeni Not Oluştur
@@ -337,19 +330,19 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
         {/* Stats */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-xl font-semibold text-foreground">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
               {searchQuery
                 ? `"${searchQuery}" Arama Sonuçları`
                 : "Tüm Notlarım"}
             </h2>
-            <p className="text-sm text-gray-600 flex items-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
               <FileText className="w-4 h-4 mr-1" />
               {allNotes.length} not • Elasticsearch ile sıralanmıştır
             </p>
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
               {data?.pages[0]?.total && (
                 <>
                   Toplam{" "}
@@ -361,7 +354,7 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
 
             <button
               onClick={() => refetch()}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               title="Yenile"
             >
               <RefreshCw className="w-5 h-5" />
@@ -377,10 +370,10 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
           return (
             <div
               key={`${note.id}-${index}`}
-              className={`bg-white rounded-xl shadow-sm border transition-all duration-200 hover:shadow-md cursor-pointer group ${
+              className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border transition-all duration-200 hover:shadow-md cursor-pointer group ${
                 isSelected
-                  ? "ring-2 ring-blue-500 border-blue-300"
-                  : "border-gray-200"
+                  ? "ring-2 ring-blue-500 dark:ring-blue-400 border-blue-300 dark:border-blue-600"
+                  : "border-gray-200 dark:border-gray-700"
               }`}
               onClick={() => handleNoteClick(note)}
             >
@@ -389,7 +382,7 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900 truncate pr-4">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate pr-4">
                         {note.title}
                       </h3>
 
@@ -405,14 +398,14 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
                           {note.keywords.slice(0, 3).map((keyword, idx) => (
                             <span
                               key={idx}
-                              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100"
+                              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800"
                             >
                               <Tag className="w-3 h-3 mr-1" />
                               {keyword}
                             </span>
                           ))}
                           {note.keywords.length > 3 && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-500">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                               +{note.keywords.length - 3}
                             </span>
                           )}
@@ -433,14 +426,14 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
                   <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                     <button
                       onClick={(e) => handleEditNote(note._id, e)}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                       title="Düzenle"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={(e) => handleDeleteNote(note.id, e)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                       title="Sil"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -452,20 +445,20 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
                 {renderHighlightedContent(note)}
 
                 {/* Footer */}
-                <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+                <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                   <div className="flex items-center space-x-4">
-                    <div className="flex items-center text-sm text-gray-500">
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <Clock className="w-4 h-4 mr-1" />
                       {formatDate(note.createdAt)}
                     </div>
 
-                    <div className="flex items-center text-sm text-gray-500">
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <FileText className="w-4 h-4 mr-1" />
                       {note.metadata?.wordCount || 0} kelime
                     </div>
 
                     {note.metadata?.sentiment !== undefined && (
-                      <div className="flex items-center text-sm text-gray-500">
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                         {getSentimentIcon(note.metadata.sentiment)}
                         {note.metadata.sentiment > 0.3
                           ? "Pozitif"
@@ -476,7 +469,7 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
                     )}
                   </div>
 
-                  <div className="text-xs text-gray-400 flex items-center">
+                  <div className="text-xs text-gray-400 dark:text-gray-500 flex items-center">
                     <Info className="w-3 h-3 mr-1" />
                     ID: {note.id.substring(0, 8)}...
                   </div>
@@ -491,14 +484,14 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
           <div ref={loadMoreRef} className="py-8 text-center">
             {isFetchingNextPage ? (
               <div className="flex justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400">
                   <RefreshCw className="w-4 h-4 m-auto mt-2" />
                 </div>
               </div>
             ) : (
               <button
                 onClick={() => fetchNextPage()}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center mx-auto"
+                className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium flex items-center mx-auto"
               >
                 <ChevronDown className="w-5 h-5 mr-2" />
                 Daha fazla yükle
@@ -509,9 +502,9 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
 
         {/* End of list */}
         {!hasNextPage && allNotes.length > 0 && (
-          <div className="py-8 text-center border-t border-gray-200">
-            <p className="text-gray-500 flex items-center justify-center">
-              <Check className="w-5 h-5 mr-2 text-green-500" />
+          <div className="py-8 text-center border-t border-gray-200 dark:border-gray-700">
+            <p className="text-gray-500 dark:text-gray-400 flex items-center justify-center">
+              <Check className="w-5 h-5 mr-2 text-green-500 dark:text-green-400" />
               🎉 Tüm notlarınızı görüntülüyorsunuz! ({allNotes.length} not)
             </p>
           </div>

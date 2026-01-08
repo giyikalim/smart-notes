@@ -172,7 +172,7 @@ export default function CreateNotePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6">
             <div className="flex justify-between items-center">
@@ -186,7 +186,7 @@ export default function CreateNotePage() {
               </div>
               <button
                 onClick={() => router.back()}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors"
+                className="px-4 py-2 bg-white dark:bg-gray-900/20 hover:bg-white dark:bg-gray-900/30 text-white rounded-lg transition-colors"
               >
                 ← Geri
               </button>
@@ -456,7 +456,7 @@ export default function CreateNotePage() {
 
         {/* Özellikler */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100 hover:border-blue-300 transition-colors">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm border border-blue-100 hover:border-blue-300 transition-colors">
             <div className="text-blue-600 text-2xl mb-3">🤖</div>
             <h3 className="font-semibold text-gray-800 mb-2">AI Metadata</h3>
             <p className="text-gray-600 text-sm">
@@ -465,7 +465,7 @@ export default function CreateNotePage() {
             </p>
           </div>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-green-100 hover:border-green-300 transition-colors">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm border border-green-100 hover:border-green-300 transition-colors">
             <div className="text-green-600 text-2xl mb-3">✏️</div>
             <h3 className="font-semibold text-gray-800 mb-2">
               Esnek Düzenleme
@@ -476,7 +476,7 @@ export default function CreateNotePage() {
             </p>
           </div>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-purple-100 hover:border-purple-300 transition-colors">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm border border-purple-100 hover:border-purple-300 transition-colors">
             <div className="text-purple-600 text-2xl mb-3">📊</div>
             <h3 className="font-semibold text-gray-800 mb-2">Analitik</h3>
             <p className="text-gray-600 text-sm">
