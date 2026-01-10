@@ -6,11 +6,75 @@ import NoteList from "@/components/notes/NoteList";
 import SearchBar from "@/components/search/SearchBar";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useProtectedRoute } from "@/lib/auth";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 export default function DashboardPage() {
   const { user, isLoading } = useProtectedRoute();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [shouldFocusSearch, setShouldFocusSearch] = useState(false); // Yeni state
+  const searchInputRef = useRef<HTMLInputElement>(null); // Ref ekleyin
+
+  const searchParams = useSearchParams();
+  const urlQuery = searchParams.get("q");
+
+  const [searchQuery, setSearchQuery] = useState(urlQuery || "");
+
+  useEffect(() => {
+    if (urlQuery) {
+      setSearchQuery(urlQuery);
+      // URL'den query geldiyse de focus et
+      setShouldFocusSearch(true);
+    }
+  }, [urlQuery]);
+
+  useEffect(() => {
+    // Sayfa ilk yüklendiğinde search bar'ı focus et
+    if (!isLoading && user) {
+      // Kısa bir gecikme ekleyelim ki sayfa tam yüklensin
+      const timer = setTimeout(() => {
+        setShouldFocusSearch(true);
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, user]);
+
+  // DashboardPage bileşenine useEffect ekleyin
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+K veya Cmd+K ile search bar'a focus
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+
+      // Slash (/) ile de focus et
+      if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+
+      // ESC ile focus'tan çık (eğer search bar boşsa)
+      if (
+        e.key === "Escape" &&
+        searchInputRef.current === document.activeElement &&
+        !searchQuery
+      ) {
+        searchInputRef.current?.blur();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (shouldFocusSearch && searchInputRef.current) {
+      searchInputRef.current.focus();
+      // Focus olduktan sonra state'i sıfırla
+      setShouldFocusSearch(false);
+    }
+  }, [shouldFocusSearch]);
 
   if (isLoading || !user) {
     return (
@@ -39,7 +103,11 @@ export default function DashboardPage() {
 
             {/* Search Bar */}
             <div className="w-full sm:w-96">
-              <SearchBar onSearch={setSearchQuery} />
+              <SearchBar
+                onSearch={setSearchQuery}
+                autoFocus={true}
+                ref={searchInputRef}
+              />
             </div>
 
             <div className="flex items-center gap-4">

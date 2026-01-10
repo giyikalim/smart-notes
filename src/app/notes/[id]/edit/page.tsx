@@ -330,7 +330,9 @@ export default function FullscreenEditPage() {
   // Vazgeç
   const handleCancel = () => {
     if (
-      (content !== note?.content || summary !== note.summary || title !== note.title) &&
+      (content !== note?.content ||
+        summary !== note.summary ||
+        title !== note.title) &&
       !confirm(
         "Kaydedilmemiş değişiklikler var. Çıkmak istediğinize emin misiniz?"
       )
@@ -495,14 +497,15 @@ export default function FullscreenEditPage() {
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row h-[calc(100vh-73px)]">
+      {/* Ana içerik - flex-grow ile kalan alanı kapla */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Editor - Sol */}
-        <div className="flex-1 overflow-hidden">
-          <div className="p-4 sm:p-6 h-full flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-4 sm:p-6 flex-1 flex flex-col overflow-hidden">
             {!isContentExpanded && (
               <>
                 {/* Başlık Editörü */}
-                <div className="mb-6">
+                <div className="mb-4 shrink-0">
                   <ExpandableEditor
                     label="Başlık"
                     value={title}
@@ -516,11 +519,12 @@ export default function FullscreenEditPage() {
                     onResetOriginal={resetTitleToOriginalAI}
                     hasOriginalAI={!!note?.metadata?.aiMetadata}
                     isExpandable={false}
+                    isExpanded={isContentExpanded}
                   />
                 </div>
 
                 {/* Özet Editörü */}
-                <div className="mb-6">
+                <div className="mb-4 shrink-0">
                   <ExpandableEditor
                     label="Özet"
                     value={summary}
@@ -534,6 +538,7 @@ export default function FullscreenEditPage() {
                     onResetOriginal={resetSummaryToOriginalAI}
                     hasOriginalAI={!!note?.metadata?.aiMetadata}
                     isExpandable={false}
+                    isExpanded={isContentExpanded}
                   />
                 </div>
               </>
@@ -541,7 +546,7 @@ export default function FullscreenEditPage() {
 
             {/* İçerik Editörü */}
 
-            <div className="flex-1">
+            <div className="flex-1 min-h-0">
               {/* İçerik Editörü - Her zaman göster */}
               <div className="flex-1">
                 <ExpandableEditor
@@ -562,6 +567,7 @@ export default function FullscreenEditPage() {
                   onFullscreenToggle={toggleContentFullscreen}
                   autoFocus={isContentExpanded}
                   isExpandable={false}
+                  isExpanded={isContentExpanded}
                 />
               </div>
             </div>
@@ -570,157 +576,167 @@ export default function FullscreenEditPage() {
 
         {/* Analysis Panel - Sağ */}
         {!isContentExpanded && showAnalysis && (
-          <div className="w-full lg:w-96 border-t lg:border-l border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-800">
-            <div className="p-4 sm:p-6">
-              <h2 className="text-lg font-semibold mb-6 text-blue-600 dark:text-blue-400">
-                🔍 Analiz Paneli
-              </h2>
+          <div className="w-full lg:w-96 flex flex-col border-t lg:border-l border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-4 sm:p-6">
+                <h2 className="text-lg font-semibold mb-6 text-blue-600 dark:text-blue-400">
+                  🔍 Analiz Paneli
+                </h2>
 
-              {/* AI Results Summary */}
-              {Object.keys(aiResults).length > 0 && (
-                <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-800">
-                  <h4 className="text-sm font-medium text-purple-800 dark:text-purple-300 mb-2">
-                    🤖 Son AI İşlemleri
-                  </h4>
-                  <div className="space-y-2">
-                    {Object.entries(aiResults).map(([workerId, result]) => {
-                      if (!result?.success) return null;
-                      const worker = AI_WORKERS.find((w) => w.id === workerId);
-                      return (
-                        <div
-                          key={workerId}
-                          className="flex items-center justify-between text-xs"
-                        >
-                          <div className="flex items-center">
-                            <span className="mr-2">{worker?.icon}</span>
-                            <span className="text-gray-600 dark:text-gray-400">
-                              {worker?.name}
-                            </span>
+                {/* AI Results Summary */}
+                {Object.keys(aiResults).length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-800">
+                    <h4 className="text-sm font-medium text-purple-800 dark:text-purple-300 mb-2">
+                      🤖 Son AI İşlemleri
+                    </h4>
+                    <div className="space-y-2">
+                      {Object.entries(aiResults).map(([workerId, result]) => {
+                        if (!result?.success) return null;
+                        const worker = AI_WORKERS.find(
+                          (w) => w.id === workerId
+                        );
+                        return (
+                          <div
+                            key={workerId}
+                            className="flex items-center justify-between text-xs"
+                          >
+                            <div className="flex items-center">
+                              <span className="mr-2">{worker?.icon}</span>
+                              <span className="text-gray-600 dark:text-gray-400">
+                                {worker?.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-green-600 dark:text-green-400">
+                                ✓
+                              </span>
+                              <span className="text-gray-500">
+                                {new Date(
+                                  result.timestamp || Date.now()
+                                ).toLocaleTimeString()}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-green-600 dark:text-green-400">
-                              ✓
-                            </span>
-                            <span className="text-gray-500">
-                              {new Date(
-                                result.timestamp || Date.now()
-                              ).toLocaleTimeString()}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Keywords */}
-              <div className="mb-6">
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    Anahtar Kelimeler
-                  </h3>
-                  <span className="text-xs text-gray-500 dark:text-gray-500">
-                    {keywords.length} kelime
-                  </span>
-                </div>
+                {/* Keywords */}
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                      Anahtar Kelimeler
+                    </h3>
+                    <span className="text-xs text-gray-500 dark:text-gray-500">
+                      {keywords.length} kelime
+                    </span>
+                  </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {keywords.map((keyword, idx) => (
-                    <div
-                      key={idx}
-                      className="inline-flex items-center px-3 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 rounded-full text-sm border border-blue-200 dark:border-blue-800/50"
-                    >
-                      {keyword}
-                      <button
-                        onClick={() =>
-                          setKeywords((kw) => kw.filter((k) => k !== keyword))
-                        }
-                        className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                  <div className="flex flex-wrap gap-2">
+                    {keywords.map((keyword, idx) => (
+                      <div
+                        key={idx}
+                        className="inline-flex items-center px-3 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 rounded-full text-sm border border-blue-200 dark:border-blue-800/50"
                       >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                        {keyword}
+                        <button
+                          onClick={() =>
+                            setKeywords((kw) => kw.filter((k) => k !== keyword))
+                          }
+                          className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Stats */}
-              <div className="space-y-6">
-                <div>
+                {/* Stats */}
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
+                      İstatistikler
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                          {wordCount}
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          Kelime
+                        </div>
+                      </div>
+                      <div className="p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                          {content.length}
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          Karakter
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Shortcuts */}
+                <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
                   <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
-                    İstatistikler
+                    Kısayollar
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {wordCount}
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        Kelime
-                      </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
+                        Ctrl
+                      </kbd>
+                      <span className="text-gray-600 dark:text-gray-400">
+                        +
+                      </span>
+                      <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
+                        S
+                      </kbd>
+                      <span className="text-gray-600 dark:text-gray-400 ml-auto">
+                        Kaydet
+                      </span>
                     </div>
-                    <div className="p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {content.length}
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        Karakter
-                      </div>
+                    <div className="flex justify-between text-sm">
+                      <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
+                        Esc
+                      </kbd>
+                      <span className="text-gray-600 dark:text-gray-400 ml-auto">
+                        Çık
+                      </span>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Shortcuts */}
-              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
-                  Kısayollar
-                </h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
-                      Ctrl
-                    </kbd>
-                    <span className="text-gray-600 dark:text-gray-400">+</span>
-                    <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
-                      S
-                    </kbd>
-                    <span className="text-gray-600 dark:text-gray-400 ml-auto">
-                      Kaydet
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
-                      Esc
-                    </kbd>
-                    <span className="text-gray-600 dark:text-gray-400 ml-auto">
-                      Çık
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
-                      Ctrl
-                    </kbd>
-                    <span className="text-gray-600 dark:text-gray-400">+</span>
-                    <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
-                      K
-                    </kbd>
-                    <span className="text-gray-600 dark:text-gray-400 ml-auto">
-                      AI Panel
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
-                      Ctrl
-                    </kbd>
-                    <span className="text-gray-600 dark:text-gray-400">+</span>
-                    <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
-                      I
-                    </kbd>
-                    <span className="text-gray-600 dark:text-gray-400 ml-auto">
-                      AI Review
-                    </span>
+                    <div className="flex justify-between text-sm">
+                      <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
+                        Ctrl
+                      </kbd>
+                      <span className="text-gray-600 dark:text-gray-400">
+                        +
+                      </span>
+                      <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
+                        K
+                      </kbd>
+                      <span className="text-gray-600 dark:text-gray-400 ml-auto">
+                        AI Panel
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
+                        Ctrl
+                      </kbd>
+                      <span className="text-gray-600 dark:text-gray-400">
+                        +
+                      </span>
+                      <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded">
+                        I
+                      </kbd>
+                      <span className="text-gray-600 dark:text-gray-400 ml-auto">
+                        AI Review
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

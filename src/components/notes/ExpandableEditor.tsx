@@ -27,6 +27,7 @@ interface ExpandableEditorProps {
   onFullscreenToggle?: () => void; // Yeni prop
   autoFocus?: boolean;
   isExpandable: boolean;
+  isExpanded: boolean;
 }
 
 export function ExpandableEditor({
@@ -75,7 +76,7 @@ export function ExpandableEditor({
   const saveEdit = () => {
     onChange(tempValue);
     setIsEditing(false);
-    if (onFullscreenToggle) {
+    if (onFullscreenToggle && isExpanded) {
       onFullscreenToggle();
     }
   };
@@ -282,7 +283,9 @@ export function ExpandableEditor({
                 value={tempValue}
                 onChange={handleChange}
                 className={`w-full px-4 py-3 border-2 border-green-300 dark:border-green-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-800 resize-none ${
-                  isFullscreenMode ? "h-[calc(100vh-120px)] text-lg" : ""
+                  isFullscreenMode
+                    ? "h-[calc(100vh-120px)] text-lg"
+                    : "min-h-[200px]"
                 }`}
                 placeholder={placeholder}
                 style={{
