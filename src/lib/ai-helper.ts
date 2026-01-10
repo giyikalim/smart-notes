@@ -10,40 +10,6 @@ export interface AISuggestion {
   timestamp?: string;
 }
 
-export async function getAISuggestion(text: string): Promise<AISuggestion> {
-  try {
-    const response = await fetch("/api/ai/suggest", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text }),
-    });
-
-    const data = await response.json();
-
-    // Başarılı response'u direkt döndür
-    if (data.success) {
-      return {
-        success: true,
-        title: data.title,
-        summary: data.summary,
-        language: data.language,
-        wordCount: data.wordCount,
-        timestamp: data.timestamp,
-      };
-    }
-
-    // Başarısız ise error'u fırlat
-    throw new Error(data.error || "AI suggestion failed");
-  } catch (error: any) {
-    console.error("AI suggestion error:", error);
-
-    // Fallback suggestion
-    return createFallbackSuggestion(text, error.message);
-  }
-}
-
 /**
  * Fallback suggestion oluştur
  */
@@ -101,3 +67,150 @@ export function createSimpleSummary(text: string): string {
 
   return text.length > 150 ? text.substring(0, 150) + "..." : text;
 }
+
+// lib/ai-helper.ts
+export interface AIEditResult {
+  success: boolean;
+  data?: {
+    language: string;
+    wordCount: number;
+    editedContent: string;
+  };
+  error?: string;
+  timestamp?: string;
+  fallback?: boolean;
+}
+
+export interface AIOrganizeResult {
+  success: boolean;
+  data?: {
+    language: string;
+    wordCount: number;
+    editedContent: string;
+  };
+  error?: string;
+  timestamp?: string;
+}
+
+export interface AISuggestResult {
+  success: boolean;
+  title: string;
+  summary: string;
+  language: string;
+  wordCount: number;
+  error?: string;
+  timestamp?: string;
+  fallback?: boolean;
+}
+
+export async function getAIEdit(text: string): Promise<AIEditResult> {
+  try {
+    const response = await fetch("/api/ai/edit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("AI Edit error:", error);
+    return {
+      success: false,
+      error: "AI Edit service is unavailable",
+    };
+  }
+}
+
+export async function getAIOrganize(text: string): Promise<AIOrganizeResult> {
+  try {
+    const response = await fetch("/api/ai/organize", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("AI Organize error:", error);
+    return {
+      success: false,
+      error: "AI Organize service is unavailable",
+    };
+  }
+}
+
+export async function getAISuggestion(text: string): Promise<AISuggestResult> {
+  try {
+    const response = await fetch("/api/ai/suggest", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("AI Suggestion error:", error);
+    return {
+      success: false,
+      error: "AI Suggestion service is unavailable",
+      title: "",
+      summary: "",
+      language: "tr",
+      wordCount: 0,
+    };
+  }
+}
+
+// AI Worker types for extensibility
+export interface AIWorker {
+  id: string;
+  name: string;
+  description: string;
+  endpoint: string;
+  icon: string;
+  color: string;
+  requiresText: boolean;
+  minLength: number;
+}
+
+export const AI_WORKERS: AIWorker[] = [
+  {
+    id: "suggest",
+    name: "AI Başlık ve Özet Öneri",
+    description: "Başlık ve özet önerisi al",
+    endpoint: "/api/ai/suggest",
+    icon: "💡",
+    color: "from-yellow-500 to-orange-500",
+    requiresText: true,
+    minLength: 10,
+  },
+  {
+    id: "edit",
+    name: "AI İçerik Düzenleyici",
+    description: "Dilbilgisi ve biçimlendirme düzeltmeleri",
+    endpoint: "/api/ai/edit",
+    icon: "✏️",
+    color: "from-blue-500 to-cyan-500",
+    requiresText: true,
+    minLength: 10,
+  },
+  {
+    id: "organize",
+    name: "AI İçerik Organizatörü",
+    description: "İçeriği düzenle ve geliştir",
+    endpoint: "/api/ai/organize",
+    icon: "🔧",
+    color: "from-green-500 to-emerald-500",
+    requiresText: true,
+    minLength: 10,
+  },
+];

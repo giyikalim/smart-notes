@@ -1,24 +1,45 @@
 "use client";
 
+import { getAISuggestion } from "@/lib/ai-helper";
 import { useAuth } from "@/lib/auth";
 import { noteAPI } from "@/lib/elasticsearch-client";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-export default function NoteDetailPage() {
+export default function NoteDetailPage({ searchParam }) {
   const { user } = useAuth();
   const params = useParams();
   const router = useRouter();
   const noteId = params.id as string;
+
+  const searchParams = useSearchParams();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  // State'lere ekleyin:
+  const [aiSuggestions, setAiSuggestions] = useState<{
+    suggestedTitle: string;
+    suggestedSummary: string;
+    language: string;
+    wordCount: number;
+  } | null>(null);
+
+  const [isAILoading, setIsAILoading] = useState(false);
+  const [showAIRequestPanel, setShowAIRequestPanel] = useState(false);
+  const [isSummaryEditing, setIsSummaryEditing] = useState(false);
+  const [editSummary, setEditSummary] = useState("");
+
+  useEffect(() => {
+    const editMode = searchParams.get("edit") === "true";
+    setIsEditing(editMode);
+  }, [searchParams]);
 
   // Not verilerini getir
   const {
@@ -37,12 +58,30 @@ export default function NoteDetailPage() {
   const [elasticSuggestions, setElasticSuggestions] = useState<{
     keywords: string[];
     sentiment: number;
-    titleSuggestions: string[];
   }>({
     keywords: [],
     sentiment: 0,
-    titleSuggestions: [],
   });
+
+  // İlk yükleme
+  useEffect(() => {
+    if (note) {
+      setEditContent(note.content);
+      setEditTitle(note.title);
+      setEditSummary(note.summary || "");
+      // ... diğer state'ler
+
+      // AI metadata varsa yükle
+      if (note.metadata?.aiMetadata) {
+        setAiSuggestions({
+          suggestedTitle: note.metadata.aiMetadata.suggestedTitle,
+          suggestedSummary: note.metadata.aiMetadata.suggestedSummary,
+          language: note.metadata.aiMetadata.aiLanguage,
+          wordCount: note.metadata.aiMetadata.aiWordCount,
+        });
+      }
+    }
+  }, [note]);
 
   // Düzenleme moduna geç
   useEffect(() => {
@@ -72,13 +111,6 @@ export default function NoteDetailPage() {
         .filter((word) => word.length > 3)
         .slice(0, 5);
 
-      // Başlık önerileri
-      const sentences = content.split(/[.!?]+/);
-      const titleSuggestions = sentences
-        .slice(0, 3)
-        .map((s) => s.trim().substring(0, 50) + (s.length > 50 ? "..." : ""))
-        .filter((s) => s.length > 10);
-
       // Duygu analizi (basit)
       const positiveWords = ["iyi", "güzel", "harika", "mükemmel", "sevindim"];
       const negativeWords = ["kötü", "üzgün", "sorun", "problem", "hata"];
@@ -95,10 +127,6 @@ export default function NoteDetailPage() {
       setElasticSuggestions({
         keywords: [...new Set([...(note?.keywords || []), ...keywords])],
         sentiment: Math.max(-1, Math.min(1, sentiment)),
-        titleSuggestions:
-          titleSuggestions.length > 0
-            ? titleSuggestions
-            : [note?.title || "Yeni Not"],
       });
     } catch (error) {
       console.error("Analiz hatası:", error);
@@ -114,22 +142,41 @@ export default function NoteDetailPage() {
 
     setIsSaving(true);
     try {
+      // AI metadata'yı güncelle
+      const aiMetadata = aiSuggestions
+        ? {
+            suggestedTitle: aiSuggestions.suggestedTitle,
+            suggestedSummary: aiSuggestions.suggestedSummary,
+            isAISuggested: true,
+            aiLanguage: aiSuggestions.language,
+            aiWordCount: aiSuggestions.wordCount,
+            userEdited:
+              editTitle !== aiSuggestions.suggestedTitle ||
+              editSummary !== aiSuggestions.suggestedSummary,
+            editedAt: new Date().toISOString(),
+          }
+        : note.metadata?.aiMetadata;
+
       const updates = {
         content: editContent,
-        title: editTitle || elasticSuggestions.titleSuggestions[0],
+        title: editTitle,
+        summary: editSummary || (await generateSummary(editContent)),
         keywords: elasticSuggestions.keywords.slice(0, 8),
-        summary: await generateSummary(editContent),
         metadata: {
+          ...note.metadata,
           wordCount: editContent.split(/\s+/).filter((w) => w.length > 0)
             .length,
           language: "tr",
           sentiment: elasticSuggestions.sentiment,
           lastEdited: new Date().toISOString(),
+          aiMetadata,
         },
       };
 
-      await noteAPI.updateNote(noteId, updates);
-      toast.success("Not Elasticsearch'e kaydedildi!");
+      await noteAPI.updateNote({ noteId, ...updates });
+      toast.success("Not Elasticsearch'e kaydedildi!", {
+        icon: aiSuggestions ? "🤖" : "✏️",
+      });
       setIsEditing(false);
       refetch();
     } catch (error) {
@@ -182,7 +229,8 @@ export default function NoteDetailPage() {
       const newExpiresAt = new Date();
       newExpiresAt.setMonth(newExpiresAt.getMonth() + 3); // 3 ay daha ekle
 
-      await noteAPI.updateNote(noteId, {
+      await noteAPI.updateNote({
+        noteId,
         expiresAt: newExpiresAt.toISOString(),
         isExpired: false,
       });
@@ -233,6 +281,67 @@ export default function NoteDetailPage() {
       </div>
     );
   }
+
+  // Fonksiyonları ekleyin:
+  const requestAIReview = async () => {
+    if (editContent.length < 30) {
+      toast.error("En az 30 karakter yazın");
+      return;
+    }
+
+    setIsAILoading(true);
+    try {
+      const suggestion = await getAISuggestion(editContent);
+
+      if (suggestion.success) {
+        const aiSuggestion = {
+          suggestedTitle: suggestion.title,
+          suggestedSummary: suggestion.summary,
+          language: suggestion.language,
+          wordCount: suggestion.wordCount,
+        };
+
+        setAiSuggestions(aiSuggestion);
+        setShowAIRequestPanel(true);
+
+        const languageEmoji = suggestion.language === "tr" ? "🇹🇷" : "🇬🇧";
+        toast.success(`${languageEmoji} AI yeni öneriler hazırladı!`, {
+          duration: 2000,
+        });
+      } else {
+        toast.error(suggestion.error || "AI önerisi alınamadı", {
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error("AI suggestion error:", error);
+      toast.error("AI servisi geçici olarak kullanılamıyor", {
+        duration: 3000,
+      });
+    } finally {
+      setIsAILoading(false);
+    }
+  };
+
+  const applyAISuggestion = (type: "title" | "summary" | "both") => {
+    if (!aiSuggestions) return;
+
+    switch (type) {
+      case "title":
+        setEditTitle(aiSuggestions.suggestedTitle);
+        toast.success("AI başlık önerisi uygulandı!");
+        break;
+      case "summary":
+        setEditSummary(aiSuggestions.suggestedSummary);
+        toast.success("AI özet önerisi uygulandı!");
+        break;
+      case "both":
+        setEditTitle(aiSuggestions.suggestedTitle);
+        setEditSummary(aiSuggestions.suggestedSummary);
+        toast.success("AI başlık ve özet önerileri uygulandı!");
+        break;
+    }
+  };
 
   // Format tarih
   const formatDate = (dateString: string) => {
@@ -352,6 +461,20 @@ export default function NoteDetailPage() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Başlık *
                       </label>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Başlık ve özet için AI'dan yardım alın
+                        </span>
+                        <button
+                          onClick={requestAIReview}
+                          disabled={isAILoading || editContent.length < 30}
+                          className="text-xs px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 transition-all"
+                        >
+                          {isAILoading
+                            ? "🤖 Analiz ediliyor..."
+                            : "🤖 AI'a Sor"}
+                        </button>
+                      </div>
                       <input
                         type="text"
                         value={editTitle}
@@ -359,30 +482,80 @@ export default function NoteDetailPage() {
                         className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:focus:ring-blue-500 focus:border-blue-600 dark:focus:border-blue-500 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 placeholder:text-gray-500 dark:placeholder:text-gray-400"
                         placeholder="Not başlığı..."
                       />
-                    </div>
 
-                    {/* Elasticsearch Title Suggestions */}
-                    {elasticSuggestions.titleSuggestions.length > 0 && (
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          🤖 Elasticsearch Başlık Önerileri:
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {elasticSuggestions.titleSuggestions.map(
-                            (suggestion, idx) => (
+                      {/* AI ÖNERİSİ GÖSTER */}
+                      {aiSuggestions &&
+                        editTitle !== aiSuggestions.suggestedTitle && (
+                          <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-900/20 rounded border border-purple-200 dark:border-purple-800">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <div className="text-xs text-purple-700 dark:text-purple-300 mb-1">
+                                  🤖 AI Başlık Önerisi:
+                                </div>
+                                <span className="text-sm font-medium">
+                                  {aiSuggestions.suggestedTitle}
+                                </span>
+                              </div>
                               <button
-                                key={idx}
-                                type="button"
-                                onClick={() => setEditTitle(suggestion)}
-                                className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
+                                onClick={() => {
+                                  setEditTitle(aiSuggestions.suggestedTitle);
+                                  toast.success("AI başlık önerisi uygulandı!");
+                                }}
+                                className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-800"
                               >
-                                {suggestion}
+                                Kullan
                               </button>
-                            )
-                          )}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                    <div className="mb-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Özet
+                        </label>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() =>
+                              setIsSummaryEditing(!isSummaryEditing)
+                            }
+                            className="text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300"
+                          >
+                            {isSummaryEditing ? "✅ Kaydet" : "✏️ Düzenle"}
+                          </button>
+                          {aiSuggestions &&
+                            editSummary !== aiSuggestions.suggestedSummary && (
+                              <button
+                                onClick={() => {
+                                  setEditSummary(
+                                    aiSuggestions.suggestedSummary
+                                  );
+                                  toast.success("AI özet önerisi uygulandı!");
+                                }}
+                                className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300"
+                              >
+                                🤖 AI Önerisini Kullan
+                              </button>
+                            )}
                         </div>
                       </div>
-                    )}
+
+                      {isSummaryEditing ? (
+                        <textarea
+                          value={editSummary}
+                          onChange={(e) => setEditSummary(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 dark:border-green-600 rounded-lg focus:ring-2 focus:ring-green-600 dark:focus:ring-green-500 focus:border-green-600 dark:focus:border-green-500 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 placeholder:text-gray-500 dark:placeholder:text-gray-400 resize-none"
+                          placeholder="Özeti düzenleyin..."
+                          rows={3}
+                        />
+                      ) : (
+                        <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                          <p className="text-gray-700 dark:text-gray-300">
+                            {editSummary || "Özet yok"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="p-6">
@@ -555,6 +728,72 @@ export default function NoteDetailPage() {
 
           {/* Sidebar - Sağ (1/3) */}
           <div className="lg:col-span-1 space-y-6">
+            {showAIRequestPanel && aiSuggestions && (
+              <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                <div className="flex justify-between items-start mb-3">
+                  <h3 className="text-sm font-medium text-purple-800 dark:text-purple-300">
+                    🤖 Yeni AI Önerileri
+                  </h3>
+                  <button
+                    onClick={() => setShowAIRequestPanel(false)}
+                    className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  >
+                    × Kapat
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                      Başlık Önerisi:
+                    </div>
+                    <div className="flex justify-between items-center p-2 bg-white dark:bg-gray-700 rounded border">
+                      <span className="text-sm">
+                        {aiSuggestions.suggestedTitle}
+                      </span>
+                      <button
+                        onClick={() => applyAISuggestion("title")}
+                        className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-800"
+                      >
+                        Uygula
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                      Özet Önerisi:
+                    </div>
+                    <div className="p-2 bg-white dark:bg-gray-700 rounded border">
+                      <p className="text-sm mb-2">
+                        {aiSuggestions.suggestedSummary}
+                      </p>
+                      <button
+                        onClick={() => applyAISuggestion("summary")}
+                        className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-800"
+                      >
+                        Uygula
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <button
+                      onClick={() => applyAISuggestion("both")}
+                      className="text-xs px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded hover:from-purple-700 hover:to-pink-700"
+                    >
+                      Hepsini Uygula
+                    </button>
+                    <div className="text-xs text-gray-500">
+                      {aiSuggestions.language === "tr"
+                        ? "🇹🇷 Türkçe"
+                        : "🇬🇧 English"}{" "}
+                      • {aiSuggestions.wordCount} kelime
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Elasticsearch Info */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
               <h3 className="font-bold text-gray-900 dark:text-gray-100 mb-6 flex items-center text-lg">
@@ -563,7 +802,6 @@ export default function NoteDetailPage() {
                 </span>
                 Elasticsearch Bilgileri
               </h3>
-
               <div className="space-y-5">
                 <div>
                   <div className="text-xs font-semibold text-gray-900 dark:text-gray-300 mb-2 uppercase tracking-wide">
@@ -608,8 +846,31 @@ export default function NoteDetailPage() {
                   </div>
                 </div>
               </div>
+              {note.metadata?.aiMetadata && (
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="text-xs font-semibold text-gray-900 dark:text-gray-300 mb-2 uppercase tracking-wide">
+                    AI Metadata
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm text-gray-700 dark:text-gray-400">
+                      <span className="font-medium">Dil:</span>{" "}
+                      {note.metadata.aiMetadata.aiLanguage === "tr"
+                        ? "🇹🇷 Türkçe"
+                        : "🇬🇧 English"}
+                    </div>
+                    <div className="text-sm text-gray-700 dark:text-gray-400">
+                      <span className="font-medium">Kelime:</span>{" "}
+                      {note.metadata.aiMetadata.aiWordCount}
+                    </div>
+                    {note.metadata.aiMetadata.userEdited && (
+                      <div className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded">
+                        ✏️ Kullanıcı tarafından düzenlendi
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-
             {/* Quick Actions */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
               <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-4">
@@ -648,7 +909,6 @@ export default function NoteDetailPage() {
                 </button>
               </div>
             </div>
-
             {/* Stats */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
               <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-4">

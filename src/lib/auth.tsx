@@ -26,22 +26,34 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
+// lib/auth.ts'de AuthProvider'ı güncelleyin
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const router = useRouter();
 
   // Kullanıcıyı yükleme fonksiyonu
   const loadUser = useCallback(async () => {
-    setIsLoading(true);
     try {
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
+
       const {
         data: { session },
+        error: sessionError,
       } = await supabase.auth.getSession();
+
+      if (userError) {
+        console.error("User error:", userError);
+      }
+
+      if (sessionError) {
+        console.error("Session error:", sessionError);
+      }
 
       setUser(user);
       setSession(session);
@@ -51,8 +63,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setSession(null);
     } finally {
       setIsLoading(false);
+      if (initialLoad) {
+        setInitialLoad(false);
+      }
     }
-  }, []);
+  }, [initialLoad]);
 
   // İlk yükleme
   useEffect(() => {
@@ -67,21 +82,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
         setUser(newSession?.user ?? null);
         setSession(newSession);
-
-        if (event === "SIGNED_IN") {
-          router.push("/dashboard");
-        }
       } else if (event === "SIGNED_OUT") {
         setUser(null);
         setSession(null);
-        router.push("/login");
+      } else if (event === "INITIAL_SESSION") {
+        // İlk session yüklendi
+        setUser(newSession?.user ?? null);
+        setSession(newSession);
+        setIsLoading(false);
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [loadUser, router]);
+  }, [loadUser, initialLoad]); // router'ı buradan kaldırın
 
   // Giriş yap
   const signIn = async (provider: string) => {
@@ -102,6 +117,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
+      // Çıkış yaptıktan sonra router'ı burada kullan
+      router.push("/login");
     } catch (error) {
       console.error("Sign out error:", error);
       throw error;
@@ -134,16 +151,40 @@ export function useAuth() {
   return context;
 }
 
-// ✅ useProtectedRoute hook'u EKLENDİ
+// lib/auth.ts'de useProtectedRoute'u güncelleyin
 export function useProtectedRoute() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, session } = useAuth();
   const router = useRouter();
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.push("/login");
-    }
-  }, [user, isLoading, router]);
+    // Yalnızca ilk yüklemede veya session değiştiğinde kontrol et
+    if (!isLoading) {
+      if (!user || !session) {
+        // Küçük bir gecikme ekleyin, tarayıcının sayfayı tam yüklemesini bekleyin
+        const timer = setTimeout(() => {
+          router.push("/login");
+        }, 100);
 
-  return { user, isLoading };
+        return () => clearTimeout(timer);
+      } else {
+        setIsChecking(false);
+      }
+    }
+  }, [user, session, isLoading, router]);
+
+  // Hala yükleniyorsa veya kontrol ediliyorsa loading göster
+  if (isLoading || isChecking) {
+    return {
+      user: null,
+      isLoading: true,
+      session: null,
+    };
+  }
+
+  return {
+    user,
+    isLoading: false,
+    session,
+  };
 }

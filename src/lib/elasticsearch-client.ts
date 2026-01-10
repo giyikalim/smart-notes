@@ -1,6 +1,7 @@
 // lib/elasticsearch-client.ts - Browser/Edge için
 const API_BASE_URL = "/api/elasticsearch";
 
+// In lib/elasticsearch-client.ts, update the Note interface:
 export interface Note {
   _id?: string;
   id: string;
@@ -25,9 +26,24 @@ export interface Note {
       aiWordCount: number;
       userEdited?: boolean;
       editedAt?: string;
+      // Add AI operations tracking
+      aiOperations?: {
+        edited?: boolean;
+        organized?: boolean;
+        editTimestamp?: string;
+        organizeTimestamp?: string;
+        lastAIOperation?: string;
+      };
     };
     readabilityScore?: number;
     lastEdited?: string;
+    // Add AI operations history
+    aiOperationsHistory?: Array<{
+      operation: string;
+      timestamp: string;
+      changesMade?: string;
+      similarityScore?: number;
+    }>;
   };
 }
 
@@ -143,12 +159,12 @@ class ElasticsearchNoteAPI {
         readabilityScore: await this.calculateReadability(content),
         ...(aiSuggestions && {
           aiMetadata: {
-            suggestedTitle: aiSuggestions.suggestedTitle,
-            suggestedSummary: aiSuggestions.suggestedSummary,
+            suggestedTitle: aiSuggestions.suggestedTitle || "",
+            suggestedSummary: aiSuggestions.suggestedSummary || "",
             isAISuggested: true,
-            aiLanguage: aiSuggestions.language,
-            aiWordCount: aiSuggestions.wordCount,
-            userEdited,
+            aiLanguage: aiSuggestions.language || "tr",
+            aiWordCount: aiSuggestions.wordCount || content.length,
+            userEdited: userEdited || false,
             ...(userEdited && { editedAt: new Date().toISOString() }),
           },
         }),

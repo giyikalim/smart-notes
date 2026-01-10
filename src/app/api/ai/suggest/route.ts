@@ -24,12 +24,13 @@ export async function POST(request: NextRequest) {
 
     // Cloudflare Worker'a istek gönder
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     const response = await fetch(CLOUDFLARE_AI_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        authorization: `Bearer ${process.env.CLOUDFLARE_WORKER_API_KEY}`,
       },
       body: JSON.stringify({ text }),
       signal: controller.signal,

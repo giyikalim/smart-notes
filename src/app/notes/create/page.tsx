@@ -170,23 +170,23 @@ export default function CreateNotePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-800 px-8 py-6">
             <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-2xl font-bold text-white">
                   Yeni Not Oluştur
                 </h1>
-                <p className="text-blue-100 mt-1">
+                <p className="text-blue-100 dark:text-blue-300 mt-1">
                   AI önerilerini kabul edin veya kendiniz düzenleyin
                 </p>
               </div>
               <button
                 onClick={() => router.back()}
-                className="px-4 py-2 bg-white dark:bg-gray-900/20 hover:bg-white dark:bg-gray-900/30 text-white rounded-lg transition-colors"
+                className="px-4 py-2 bg-white/20 dark:bg-gray-900/20 hover:bg-white/30 dark:hover:bg-gray-900/30 text-white rounded-lg transition-colors"
               >
                 ← Geri
               </button>
@@ -198,14 +198,14 @@ export default function CreateNotePage() {
             {/* Başlık Editörü */}
             <div className="mb-6">
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Başlık {aiSuggestions && "✏️"}
                 </label>
                 <div className="flex items-center space-x-2">
                   {aiSuggestions && (
                     <button
                       onClick={() => setIsTitleEditing(!isTitleEditing)}
-                      className="text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                     >
                       {isTitleEditing ? "✅ Kaydet" : "✏️ Düzenle"}
                     </button>
@@ -214,7 +214,7 @@ export default function CreateNotePage() {
                     userTitle !== aiSuggestions.suggestedTitle && (
                       <button
                         onClick={resetToAI}
-                        className="text-xs text-gray-600 hover:text-gray-800 transition-colors"
+                        className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors"
                       >
                         ↺ AI Önerisine Dön
                       </button>
@@ -227,34 +227,34 @@ export default function CreateNotePage() {
                   type="text"
                   value={userTitle}
                   onChange={(e) => setUserTitle(e.target.value)}
-                  className="w-full p-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                  className="w-full p-3 border-2 border-blue-300 dark:border-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800"
                   placeholder="Başlığı düzenleyin..."
                   autoFocus
                 />
               ) : (
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="flex items-center mb-1">
-                        <span className="text-xs font-medium text-blue-800 mr-2">
+                        <span className="text-xs font-medium text-blue-800 dark:text-blue-300 mr-2">
                           {aiSuggestions ? "🤖 AI Önerisi" : "📝 Başlık"}
                         </span>
                         {aiSuggestions && (
-                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                          <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 rounded">
                             {aiSuggestions.language === "tr"
                               ? "🇹🇷 Türkçe"
                               : "🇬🇧 English"}
                           </span>
                         )}
                       </div>
-                      <p className="text-lg font-semibold text-gray-800">
+                      <p className="text-lg font-semibold text-gray-800 dark:text-gray-200">
                         {userTitle || "Başlık yükleniyor..."}
                       </p>
                     </div>
                     {aiSuggestions && (
                       <button
                         onClick={() => copyToClipboard(userTitle, "Başlık")}
-                        className="text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                         title="Kopyala"
                       >
                         📋
@@ -268,13 +268,13 @@ export default function CreateNotePage() {
             {/* Özet Editörü */}
             <div className="mb-6">
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Özet {aiSuggestions && "✏️"}
                 </label>
                 {aiSuggestions && (
                   <button
                     onClick={() => setIsSummaryEditing(!isSummaryEditing)}
-                    className="text-xs text-green-600 hover:text-green-800 transition-colors"
+                    className="text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors"
                   >
                     {isSummaryEditing ? "✅ Kaydet" : "✏️ Düzenle"}
                   </button>
@@ -285,21 +285,21 @@ export default function CreateNotePage() {
                 <textarea
                   value={userSummary}
                   onChange={(e) => setUserSummary(e.target.value)}
-                  className="w-full p-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full p-3 border-2 border-green-300 dark:border-green-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800"
                   placeholder="Özeti düzenleyin..."
                   rows={3}
                   autoFocus
                 />
               ) : (
-                <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="flex items-center mb-1">
-                        <span className="text-xs font-medium text-green-800 mr-2">
+                        <span className="text-xs font-medium text-green-800 dark:text-green-300 mr-2">
                           {aiSuggestions ? "🤖 AI Önerisi" : "📋 Özet"}
                         </span>
                       </div>
-                      <p className="text-gray-700 leading-relaxed">
+                      <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
                         {userSummary ||
                           (aiSuggestions ? "Özet yükleniyor..." : "")}
                       </p>
@@ -307,7 +307,7 @@ export default function CreateNotePage() {
                     {aiSuggestions && userSummary && (
                       <button
                         onClick={() => copyToClipboard(userSummary, "Özet")}
-                        className="text-xs text-green-600 hover:text-green-800 transition-colors"
+                        className="text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors"
                         title="Kopyala"
                       >
                         📋
@@ -320,20 +320,20 @@ export default function CreateNotePage() {
 
             {/* AI Bilgisi */}
             {aiSuggestions && (
-              <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="mb-6 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center space-x-4">
-                    <span className="text-gray-600">
+                    <span className="text-gray-600 dark:text-gray-400">
                       🤖 AI analizi tamamlandı
                     </span>
-                    <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 rounded">
+                    <span className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 rounded">
                       📊 {aiSuggestions.wordCount} kelime
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 dark:text-gray-500">
                       ⚡ Cloudflare Edge
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     {userTitle !== aiSuggestions.suggestedTitle ||
                     userSummary !== aiSuggestions.suggestedSummary
                       ? "✏️ Kullanıcı tarafından düzenlendi"
@@ -346,17 +346,17 @@ export default function CreateNotePage() {
             {/* Not İçeriği */}
             <div className="mb-6">
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Not İçeriği *
                 </label>
                 <div className="flex items-center space-x-2">
                   {isAILoading && (
-                    <div className="flex items-center text-xs text-blue-600">
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
+                    <div className="flex items-center text-xs text-blue-600 dark:text-blue-400">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 dark:border-blue-400 mr-1"></div>
                       AI analiz ediyor...
                     </div>
                   )}
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
                     {content.length > 30
                       ? "🤖 AI analiz ediyor..."
                       : "En az 30 karakter yazın"}
@@ -367,7 +367,7 @@ export default function CreateNotePage() {
                 value={content}
                 onChange={handleContentChange}
                 placeholder="Notunuzu buraya yazın..."
-                className="w-full h-64 p-4 border-2 border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 transition-all"
+                className="w-full h-64 p-4 border-2 border-gray-300 dark:border-gray-700 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 bg-white dark:bg-gray-800 transition-all"
                 disabled={isSubmitting}
                 autoFocus
               />
@@ -377,30 +377,40 @@ export default function CreateNotePage() {
             <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
               <div className="flex items-center space-x-6">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-800">
+                  <div className="text-2xl font-bold text-gray-800 dark:text-gray-200">
                     {content.split(/\s+/).filter((w) => w.length > 0).length}
                   </div>
-                  <div className="text-xs text-gray-500">Kelime</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Kelime
+                  </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-800">
+                  <div className="text-2xl font-bold text-gray-800 dark:text-gray-200">
                     {content.length}
                   </div>
-                  <div className="text-xs text-gray-500">Karakter</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Karakter
+                  </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-800">3 Ay</div>
-                  <div className="text-xs text-gray-500">Expire</div>
+                  <div className="text-2xl font-bold text-gray-800 dark:text-gray-200">
+                    3 Ay
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Expire
+                  </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-800">
+                  <div className="text-2xl font-bold text-gray-800 dark:text-gray-200">
                     {aiSuggestions ? "✅" : "⏳"}
                   </div>
-                  <div className="text-xs text-gray-500">AI Durumu</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    AI Durumu
+                  </div>
                 </div>
               </div>
 
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 {aiSuggestions
                   ? `🤖 ${aiSuggestions.language === "tr" ? "Türkçe" : "İngilizce"} AI Analizi`
                   : "📝 Elasticsearch"}
@@ -411,7 +421,7 @@ export default function CreateNotePage() {
             <div className="flex justify-end space-x-4">
               <button
                 onClick={() => router.back()}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
                 disabled={isSubmitting}
               >
                 İptal
@@ -419,7 +429,7 @@ export default function CreateNotePage() {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !content.trim()}
-                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center transition-all shadow-md hover:shadow-lg"
+                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-500 dark:to-indigo-500 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 dark:hover:from-blue-600 dark:hover:to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center transition-all shadow-md hover:shadow-lg"
               >
                 {isSubmitting ? (
                   <>
@@ -456,30 +466,40 @@ export default function CreateNotePage() {
 
         {/* Özellikler */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm border border-blue-100 hover:border-blue-300 transition-colors">
-            <div className="text-blue-600 text-2xl mb-3">🤖</div>
-            <h3 className="font-semibold text-gray-800 mb-2">AI Metadata</h3>
-            <p className="text-gray-600 text-sm">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-blue-100 dark:border-blue-900 hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+            <div className="text-blue-600 dark:text-blue-400 text-2xl mb-3">
+              🤖
+            </div>
+            <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">
+              AI Metadata
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
               AI önerileri Elasticsearch'te saklanır. Kullanıcı düzenlemeleri
               izlenir.
             </p>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm border border-green-100 hover:border-green-300 transition-colors">
-            <div className="text-green-600 text-2xl mb-3">✏️</div>
-            <h3 className="font-semibold text-gray-800 mb-2">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-green-100 dark:border-green-900 hover:border-green-300 dark:hover:border-green-700 transition-colors">
+            <div className="text-green-600 dark:text-green-400 text-2xl mb-3">
+              ✏️
+            </div>
+            <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">
               Esnek Düzenleme
             </h3>
-            <p className="text-gray-600 text-sm">
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
               Başlık ve özeti AI önerisinden bağımsız olarak
               düzenleyebilirsiniz.
             </p>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm border border-purple-100 hover:border-purple-300 transition-colors">
-            <div className="text-purple-600 text-2xl mb-3">📊</div>
-            <h3 className="font-semibold text-gray-800 mb-2">Analitik</h3>
-            <p className="text-gray-600 text-sm">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-purple-100 dark:border-purple-900 hover:border-purple-300 dark:hover:border-purple-700 transition-colors">
+            <div className="text-purple-600 dark:text-purple-400 text-2xl mb-3">
+              📊
+            </div>
+            <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">
+              Analitik
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
               Kelime sayısı, dil tespiti, sentiment analizi ile kapsamlı
               metadata.
             </p>
