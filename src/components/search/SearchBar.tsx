@@ -7,11 +7,17 @@ interface SearchBarProps {
   onSearch?: (query: string) => void;
   initialQuery?: string;
   autoFocus?: boolean;
+  openAdvanceSearchModal: () => void;
 }
 
 const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
   function SearchBar(
-    { onSearch, initialQuery = "", autoFocus = false }: SearchBarProps,
+    {
+      onSearch,
+      initialQuery = "",
+      autoFocus = false,
+      openAdvanceSearchModal,
+    }: SearchBarProps,
     ref
   ) {
     const [query, setQuery] = useState(initialQuery);
@@ -144,7 +150,7 @@ const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
             </span>
             <button
               type="button"
-              onClick={() => router.push("/dashboard/search")}
+              onClick={() => openAdvanceSearchModal()}
               className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-xs font-medium"
             >
               Gelişmiş Arama →

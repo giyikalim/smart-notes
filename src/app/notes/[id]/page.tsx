@@ -1,10 +1,11 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { noteAPI } from "@/lib/elasticsearch-client";
+import { Note, noteAPI } from "@/lib/elasticsearch-client";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function NoteDetailPage() {
@@ -12,6 +13,29 @@ export default function NoteDetailPage() {
   const params = useParams();
   const router = useRouter();
   const noteId = params.id as string;
+  const [similarNotes, setSimilarNotes] = useState<Note[]>([]);
+  const [isLoadingSimilar, setIsLoadingSimilar] = useState(false);
+
+  useEffect(() => {
+    if (noteId) {
+      loadSimilarNotes();
+    }
+  }, [noteId]);
+
+  const loadSimilarNotes = async () => {
+    if (!user?.id) {
+      return;
+    }
+    setIsLoadingSimilar(true);
+    try {
+      const similar = await noteAPI.findSimilarNotes(noteId, user.id, 3);
+      setSimilarNotes(similar);
+    } catch (error) {
+      console.error("Benzer notlar yüklenemedi:", error);
+    } finally {
+      setIsLoadingSimilar(false);
+    }
+  };
 
   // Not verilerini getir
   const { data: note, status } = useQuery({
@@ -128,6 +152,20 @@ export default function NoteDetailPage() {
                 {note.title}
               </h1>
             </div>
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/notes/${noteId}/edit`}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-500 dark:to-indigo-500 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 dark:hover:from-blue-600 dark:hover:to-indigo-600 transition-all font-medium shadow-sm hover:shadow-md"
+              >
+                ✏️ Düzenle
+              </Link>
+              <button
+                onClick={handleDeleteNote}
+                className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 transition-colors font-medium"
+              >
+                🗑️ Sil
+              </button>
+            </div>
           </div>
 
           {/* Stats Bar */}
@@ -165,75 +203,240 @@ export default function NoteDetailPage() {
           {/* Main Content - Sol (2/3) */}
           <div className="lg:col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-              {/* View Mode */}
               <div className="p-8">
-                {/* Keywords */}
-                {note.keywords && note.keywords.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {note.keywords.map((keyword, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium"
-                      >
-                        {keyword}
+                {/* Content - EN SON */}
+                <div className="border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                      <span className="text-gray-600 dark:text-gray-400 text-xl">
+                        📖
                       </span>
-                    ))}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+                        Not İçeriği
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Tam metin
+                      </p>
+                    </div>
                   </div>
-                )}
-
-                {/* Content */}
-                <div className="prose max-w-none mb-8">
-                  <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-lg leading-relaxed">
-                    {note.content}
+                  <div className="prose max-w-none">
+                    <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-lg leading-relaxed bg-gray-50 dark:bg-gray-900/50 p-5 rounded-xl">
+                      {note.content}
+                    </div>
                   </div>
                 </div>
 
-                {/* Summary */}
-                {note.summary && (
-                  <div className="mt-8 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg">
-                    <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                      📋 Özet
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400">
-                      {note.summary}
-                    </p>
+                {/* Quick Stats at Bottom */}
+                <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                      <div className="text-xl font-bold text-blue-700 dark:text-blue-400">
+                        {note.metadata?.wordCount || 0}
+                      </div>
+                      <div className="text-xs text-blue-600 dark:text-blue-300">
+                        Kelime
+                      </div>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                      <div className="text-xl font-bold text-green-700 dark:text-green-400">
+                        {note.keywords?.length || 0}
+                      </div>
+                      <div className="text-xs text-green-600 dark:text-green-300">
+                        Anahtar Kelime
+                      </div>
+                    </div>
+                    {note.metadata?.sentiment !== undefined && (
+                      <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                        <div className="text-xl font-bold text-purple-700 dark:text-purple-400">
+                          {note.metadata.sentiment > 0.3
+                            ? "😊"
+                            : note.metadata.sentiment < -0.3
+                              ? "😔"
+                              : "😐"}
+                        </div>
+                        <div className="text-xs text-purple-600 dark:text-purple-300">
+                          Duygu
+                        </div>
+                      </div>
+                    )}
+                    <div className="text-center p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg">
+                      <div className="text-xl font-bold text-amber-700 dark:text-amber-400">
+                        {note.metadata?.language === "tr" ? "🇹🇷" : "🇬🇧"}
+                      </div>
+                      <div className="text-xs text-amber-600 dark:text-amber-300">
+                        Dil
+                      </div>
+                    </div>
                   </div>
-                )}
+                </div>
+
+                {/* Benzer Notlar Bölümü - İçerikten sonra, sidebar'dan önce */}
+                <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                          <span className="text-purple-600 dark:text-purple-400">
+                            🔗
+                          </span>
+                          Benzer Notlar
+                        </h3>
+                        <button
+                          onClick={loadSimilarNotes}
+                          className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                          disabled={isLoadingSimilar}
+                        >
+                          {isLoadingSimilar ? "Yükleniyor..." : "Yenile"}
+                        </button>
+                      </div>
+
+                      {isLoadingSimilar ? (
+                        <div className="flex justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                        </div>
+                      ) : similarNotes.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {similarNotes.map((similarNote) => (
+                            <Link
+                              key={similarNote.id}
+                              href={`/notes/${similarNote.id}`}
+                              className="block p-4 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 transition-all hover:shadow-md group"
+                            >
+                              <div className="flex justify-between items-start mb-2">
+                                <h4 className="font-medium text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 line-clamp-2">
+                                  {similarNote.title}
+                                </h4>
+                                <span className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
+                                  %
+                                  {Math.round(
+                                    (similarNote.similarityScore || 0) * 100
+                                  )}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
+                                {similarNote.summary}
+                              </p>
+                              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-500">
+                                <span>
+                                  {similarNote.metadata.wordCount} kelime
+                                </span>
+                                <span>{formatDate(similarNote.createdAt)}</span>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                          <div className="text-4xl mb-4">📝</div>
+                          <p>Benzer not bulunamadı</p>
+                          <p className="text-sm mt-2">
+                            Yeni notlar oluşturdukça benzerlikler gösterilecek
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Sidebar - Sağ (1/3) */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Quick Actions */}
+            {/* Özet - İÇERİKTEN ÖNCE */}
+            {note.summary && (
+              <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                    <span className="text-blue-600 dark:text-blue-400 text-xl">
+                      📋
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300">
+                      Özet
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Bu notun kısa özeti
+                    </p>
+                  </div>
+                </div>
+                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                  {note.summary}
+                </p>
+              </div>
+            )}
+
+            {/* Keywords - Özetten sonra */}
+            {note.keywords && note.keywords.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center gap-2">
+                  <span>🏷️</span>
+                  Anahtar Kelimeler
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {note.keywords.map((keyword, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-800 dark:text-blue-300 rounded-lg text-sm font-medium border border-blue-200 dark:border-blue-800"
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Timeline */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-              <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-4">
-                ⚡ Hızlı İşlemler
+              <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+                <span>📅</span>
+                Zaman Çizelgesi
               </h3>
 
-              <div className="space-y-3">
-                <Link
-                  href={`/notes/${noteId}/edit`}
-                  className="block w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-500 dark:to-indigo-500 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 dark:hover:from-blue-600 dark:hover:to-indigo-600 transition-all font-medium text-center shadow-sm hover:shadow-md"
-                >
-                  ✏️ Düzenle
-                </Link>
+              <div className="space-y-4">
+                <div className="relative pl-6">
+                  <div className="absolute left-0 top-0 w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className="text-xs font-medium text-gray-900 dark:text-gray-300">
+                    Oluşturuldu
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {formatDate(note.createdAt)}
+                  </div>
+                </div>
 
-                <button
-                  onClick={handleDeleteNote}
-                  className="w-full px-4 py-3 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 transition-colors font-medium"
-                >
-                  🗑️ Notu Sil
-                </button>
+                <div className="relative pl-6">
+                  <div className="absolute left-0 top-0 w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <div className="text-xs font-medium text-gray-900 dark:text-gray-300">
+                    Son Güncelleme
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {formatDate(
+                      note.metadata?.lastEdited ||
+                        note.updatedAt ||
+                        note.createdAt
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative pl-6">
+                  <div className="absolute left-0 top-0 w-2 h-2 bg-red-500 rounded-full"></div>
+                  <div className="text-xs font-medium text-gray-900 dark:text-gray-300">
+                    Expire Tarihi
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {formatDate(note.expiresAt)}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Elasticsearch Info */}
+            {/* Technical Info */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-              <h3 className="font-bold text-gray-900 dark:text-gray-100 mb-6 flex items-center text-lg">
-                <span className="text-blue-700 dark:text-blue-400 mr-2">
-                  🔍
-                </span>
+              <h3 className="font-bold text-gray-900 dark:text-gray-100 mb-6 flex items-center text-lg gap-2">
+                <span className="text-blue-700 dark:text-blue-400">🔍</span>
                 Teknik Bilgiler
               </h3>
               <div className="space-y-5">
@@ -252,19 +455,6 @@ export default function NoteDetailPage() {
                   </div>
                   <div className="font-mono text-sm bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-300 truncate">
                     {note.userId}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-xs font-semibold text-gray-900 dark:text-gray-300 mb-2 uppercase tracking-wide">
-                    Dil
-                  </div>
-                  <div className="flex items-center">
-                    <span className="px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-300 rounded-lg text-sm font-semibold border border-green-200 dark:border-green-800">
-                      {note.metadata?.language === "tr"
-                        ? "🇹🇷 Türkçe"
-                        : note.metadata?.language || "Unknown"}
-                    </span>
                   </div>
                 </div>
 
@@ -304,75 +494,6 @@ export default function NoteDetailPage() {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Stats */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-              <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-4">
-                📊 İstatistikler
-              </h3>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-                      {note.metadata?.wordCount || 0}
-                    </div>
-                    <div className="text-xs text-blue-600 dark:text-blue-300 mt-1">
-                      Kelime
-                    </div>
-                  </div>
-
-                  <div className="text-center p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
-                    <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-                      {note.keywords?.length || 0}
-                    </div>
-                    <div className="text-xs text-green-600 dark:text-green-300 mt-1">
-                      Anahtar Kelime
-                    </div>
-                  </div>
-                </div>
-
-                {note.metadata?.sentiment !== undefined && (
-                  <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="text-sm font-medium text-purple-700 dark:text-purple-400">
-                        Duygu Analizi
-                      </div>
-                      <div className="text-lg">
-                        {note.metadata.sentiment > 0.3
-                          ? "😊"
-                          : note.metadata.sentiment < -0.3
-                            ? "😔"
-                            : "😐"}
-                      </div>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div
-                        className="bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 h-2 rounded-full"
-                        style={{
-                          width: `${
-                            ((note.metadata.sentiment + 1) / 2) * 100
-                          }%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                    Son Güncelleme
-                  </div>
-                  <div className="font-medium text-gray-900 dark:text-gray-300">
-                    {formatDate(
-                      note.metadata?.lastEdited ||
-                        note.updatedAt ||
-                        note.createdAt
-                    )}
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>

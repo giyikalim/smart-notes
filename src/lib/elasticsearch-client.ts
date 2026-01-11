@@ -47,6 +47,22 @@ export interface Note {
   };
 }
 
+interface AdvancedSearchOptions {
+  userId: string;
+  query?: string;
+  filters?: {
+    dateRange?: { from: string; to: string };
+    wordCountRange?: { min: number; max: number };
+    sentimentRange?: { min: number; max: number };
+    languages?: string[];
+    hasAI?: boolean;
+    keywords?: string[];
+  };
+  sortBy?: "relevance" | "date" | "wordCount" | "sentiment";
+  page?: number;
+  pageSize?: number;
+}
+
 export interface CreateNoteOptions {
   userId: string;
   content: string;
@@ -966,6 +982,395 @@ class ElasticsearchNoteAPI {
       total: response.hits.total.value,
       page,
       pageSize,
+    };
+  }
+
+  async findSimilarNotes(
+    noteId: string,
+    userId: string,
+    limit = 5
+  ): Promise<Note[]> {
+    try {
+      const note = await this.getNoteById(noteId);
+      if (!note) return [];
+
+      // Notun içeriğinden önemli terimleri çıkar
+      const importantTerms = await this.extractImportantTerms(note.content);
+      if (importantTerms.length === 0) {
+        // Anahtar kelimeleri kullan
+        return [];
+      }
+
+      const response = await this.request<{
+        hits: {
+          hits: Array<{ _source: Note; _id: string; _score: number }>;
+        };
+      }>("/notes/_search", {
+        method: "POST",
+        body: JSON.stringify({
+          query: {
+            bool: {
+              must: [{ term: { userId } }],
+              must_not: [{ term: { _id: noteId } }],
+              should: [
+                // İçerik benzerliği
+                {
+                  match: {
+                    content: {
+                      query: importantTerms.join(" "),
+                      minimum_should_match: "30%",
+                      boost: 3.0,
+                    },
+                  },
+                },
+                // Başlık benzerliği
+                {
+                  match: {
+                    title: {
+                      query: note.title,
+                      fuzziness: "AUTO",
+                      boost: 2.0,
+                    },
+                  },
+                },
+                // Anahtar kelime benzerliği
+                ...note.keywords.slice(0, 5).map((keyword) => ({
+                  match: {
+                    keywords: {
+                      query: keyword,
+                      boost: 1.5,
+                    },
+                  },
+                })),
+              ],
+              filter: [
+                { term: { isExpired: false } },
+                {
+                  range: {
+                    expiresAt: {
+                      gte: "now",
+                    },
+                  },
+                },
+              ],
+              minimum_should_match: 1,
+            },
+          },
+          size: limit,
+        }),
+      });
+
+      return response.hits.hits.map((hit) => ({
+        ...hit._source,
+        _id: hit._id,
+        similarityScore: this.calculateSimilarityScore(
+          note,
+          hit._source,
+          hit._score
+        ),
+      }));
+    } catch (error) {
+      console.error("İçerik bazlı benzer notlar getirilirken hata:", error);
+      return [];
+    }
+  }
+
+  private async extractImportantTerms(content: string): Promise<string[]> {
+    // Basit TF-IDF benzeri önemli terim çıkarımı
+    const words = content
+      .toLowerCase()
+      .replace(/[^\w\sğüşıöçĞÜŞİÖÇ]/g, " ")
+      .split(/\s+/)
+      .filter((word) => word.length > 3);
+
+    const stopWords = new Set([
+      "ve",
+      "ile",
+      "bir",
+      "bu",
+      "şu",
+      "için",
+      "ama",
+      "fakat",
+      "ancak",
+      "veya",
+      "gibi",
+      "kadar",
+      "de",
+      "da",
+      "ki",
+    ]);
+
+    const wordFrequency: Record<string, number> = {};
+    words.forEach((word) => {
+      if (!stopWords.has(word)) {
+        wordFrequency[word] = (wordFrequency[word] || 0) + 1;
+      }
+    });
+
+    // En sık geçen 10 terim
+    return Object.entries(wordFrequency)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([word]) => word);
+  }
+
+  private calculateSimilarityScore(
+    sourceNote: Note,
+    targetNote: Note,
+    elasticScore: number
+  ): number {
+    let score = elasticScore;
+
+    // Başlık benzerliği
+    const titleSimilarity = this.calculateStringSimilarity(
+      sourceNote.title.toLowerCase(),
+      targetNote.title.toLowerCase()
+    );
+    score += titleSimilarity * 0.3;
+
+    // Anahtar kelime overlap'ı
+    const sourceKeywords = new Set(sourceNote.keywords);
+    const targetKeywords = new Set(targetNote.keywords);
+    const keywordOverlap = this.calculateSetOverlap(
+      sourceKeywords,
+      targetKeywords
+    );
+    score += keywordOverlap * 0.2;
+
+    // Dil benzerliği
+    if (sourceNote.metadata?.language === targetNote.metadata?.language) {
+      score += 0.1;
+    }
+
+    // Normalize et (0-1 arası)
+    return Math.min(1, score / 5);
+  }
+
+  private calculateStringSimilarity(str1: string, str2: string): number {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+
+    if (longer.length === 0) return 1.0;
+
+    return (longer.length - this.editDistance(longer, shorter)) / longer.length;
+  }
+
+  private editDistance(s1: string, s2: string): number {
+    s1 = s1.toLowerCase();
+    s2 = s2.toLowerCase();
+
+    const costs = [];
+    for (let i = 0; i <= s1.length; i++) {
+      let lastValue = i;
+      for (let j = 0; j <= s2.length; j++) {
+        if (i === 0) {
+          costs[j] = j;
+        } else {
+          if (j > 0) {
+            let newValue = costs[j - 1];
+            if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+              newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+            }
+            costs[j - 1] = lastValue;
+            lastValue = newValue;
+          }
+        }
+      }
+      if (i > 0) costs[s2.length] = lastValue;
+    }
+    return costs[s2.length];
+  }
+
+  private calculateSetOverlap<T>(set1: Set<T>, set2: Set<T>): number {
+    const intersection = new Set([...set1].filter((x) => set2.has(x)));
+    const union = new Set([...set1, ...set2]);
+
+    if (union.size === 0) return 0;
+    return intersection.size / union.size;
+  }
+
+  async advancedSearch(options: AdvancedSearchOptions): Promise<{
+    notes: Note[];
+    total: number;
+    aggregations: {
+      languages: Array<{ language: string; count: number }>;
+      sentimentDistribution: Array<{ range: string; count: number }>;
+      wordCountDistribution: Array<{ range: string; count: number }>;
+    };
+  }> {
+    const mustClauses = [{ term: { userId: options.userId } }];
+    const filterClauses = [];
+
+    // Query search
+    if (options.query) {
+      mustClauses.push({
+        multi_match: {
+          query: options.query,
+          fields: ["content^3", "title^2", "keywords^1.5", "summary^1"],
+          type: "best_fields",
+          fuzziness: "AUTO",
+        },
+      });
+    }
+
+    // Date range filter
+    if (options.filters?.dateRange) {
+      filterClauses.push({
+        range: {
+          createdAt: {
+            gte: options.filters.dateRange.from,
+            lte: options.filters.dateRange.to,
+          },
+        },
+      });
+    }
+
+    // Word count filter
+    if (options.filters?.wordCountRange) {
+      filterClauses.push({
+        range: {
+          "metadata.wordCount": {
+            gte: options.filters.wordCountRange.min,
+            lte: options.filters.wordCountRange.max,
+          },
+        },
+      });
+    }
+
+    // Sentiment filter
+    if (options.filters?.sentimentRange) {
+      filterClauses.push({
+        range: {
+          "metadata.sentiment": {
+            gte: options.filters.sentimentRange.min,
+            lte: options.filters.sentimentRange.max,
+          },
+        },
+      });
+    }
+
+    // Language filter
+    if (options.filters?.languages?.length) {
+      filterClauses.push({
+        terms: {
+          "metadata.language.keyword": options.filters.languages,
+        },
+      });
+    }
+
+    // Has AI filter
+    if (options.filters?.hasAI !== undefined) {
+      if (options.filters.hasAI) {
+        mustClauses.push({ exists: { field: "metadata.aiMetadata" } });
+      } else {
+        mustClauses.push({
+          bool: { must_not: { exists: { field: "metadata.aiMetadata" } } },
+        });
+      }
+    }
+
+    // Keywords filter
+    if (options.filters?.keywords?.length) {
+      filterClauses.push({
+        terms: {
+          "keywords.keyword": options.filters.keywords,
+        },
+      });
+    }
+
+    const sortOptions = {
+      relevance: [{ _score: "desc" }],
+      date: [{ createdAt: "desc" }],
+      wordCount: [{ "metadata.wordCount": "desc" }],
+      sentiment: [{ "metadata.sentiment": "desc" }],
+    };
+
+    const from = ((options.page || 1) - 1) * (options.pageSize || 10);
+
+    const response = await this.request<{
+      hits: {
+        total: { value: number };
+        hits: Array<{ _source: Note; _id: string; _score: number }>;
+      };
+      aggregations: {
+        languages: { buckets: Array<{ key: string; doc_count: number }> };
+        sentiment_ranges: {
+          buckets: Array<{ key: string; doc_count: number }>;
+        };
+        word_count_ranges: {
+          buckets: Array<{ key: string; doc_count: number }>;
+        };
+      };
+    }>("/notes/_search", {
+      method: "POST",
+      body: JSON.stringify({
+        query: {
+          bool: {
+            must: mustClauses,
+            filter: filterClauses,
+          },
+        },
+        aggs: {
+          languages: {
+            terms: {
+              field: "metadata.language.keyword",
+              size: 10,
+            },
+          },
+          sentiment_ranges: {
+            range: {
+              field: "metadata.sentiment",
+              ranges: [
+                { key: "very_negative", to: -0.5 },
+                { key: "negative", from: -0.5, to: -0.1 },
+                { key: "neutral", from: -0.1, to: 0.1 },
+                { key: "positive", from: 0.1, to: 0.5 },
+                { key: "very_positive", from: 0.5 },
+              ],
+            },
+          },
+          word_count_ranges: {
+            range: {
+              field: "metadata.wordCount",
+              ranges: [
+                { key: "short", to: 100 },
+                { key: "medium", from: 100, to: 500 },
+                { key: "long", from: 500, to: 1000 },
+                { key: "very_long", from: 1000 },
+              ],
+            },
+          },
+        },
+        sort: sortOptions[options.sortBy || "relevance"],
+        from,
+        size: options.pageSize || 10,
+      }),
+    });
+
+    return {
+      notes: response.hits.hits.map((hit) => ({
+        ...hit._source,
+        _id: hit._id,
+        relevanceScore: hit._score,
+      })),
+      total: response.hits.total.value,
+      aggregations: {
+        languages: response.aggregations.languages.buckets.map((b) => ({
+          language: b.key,
+          count: b.doc_count,
+        })),
+        sentimentDistribution:
+          response.aggregations.sentiment_ranges.buckets.map((b) => ({
+            range: b.key,
+            count: b.doc_count,
+          })),
+        wordCountDistribution:
+          response.aggregations.word_count_ranges.buckets.map((b) => ({
+            range: b.key,
+            count: b.doc_count,
+          })),
+      },
     };
   }
 }

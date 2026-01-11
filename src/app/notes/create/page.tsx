@@ -247,8 +247,8 @@ export default function CreateNotePage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-                        {userTitle || "Başlık yükleniyor..."}
+                      <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                        {userTitle || "AI ile oluşturulacak..."}
                       </p>
                     </div>
                     {aiSuggestions && (
@@ -301,7 +301,9 @@ export default function CreateNotePage() {
                       </div>
                       <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
                         {userSummary ||
-                          (aiSuggestions ? "Özet yükleniyor..." : "")}
+                          (aiSuggestions
+                            ? "Özet yükleniyor..."
+                            : "AI ile oluşturulacak...")}
                       </p>
                     </div>
                     {aiSuggestions && userSummary && (
