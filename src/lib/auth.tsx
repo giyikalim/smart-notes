@@ -104,7 +104,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await supabase.auth.signInWithOAuth({
         provider: provider as any,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/callback`,
         },
       });
     } catch (error) {

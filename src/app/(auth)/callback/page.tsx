@@ -1,3 +1,4 @@
+// app/(auth)/callback/page.tsx
 "use client";
 
 import { supabase } from "@/lib/supabase";
@@ -11,27 +12,43 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Get the hash from the URL
+        // URL'deki hash fragment'ını al
         const hash = window.location.hash;
 
         if (hash) {
-          // PKCE flow için hash'i işle
-          const { data, error } = await supabase.auth.getSessionFromUrl({
-            storeSession: true,
-          });
+          // Hash'i parse et (Supabase v2 için yeni yöntem)
+          const params = new URLSearchParams(hash.substring(1));
+          const accessToken = params.get("access_token");
+          const refreshToken = params.get("refresh_token");
+          const error = params.get("error");
+          const errorDescription = params.get("error_description");
 
           if (error) {
-            throw error;
+            throw new Error(`${error}: ${errorDescription}`);
           }
 
-          if (data?.session) {
-            // Başarılı, dashboard'a yönlendir
-            router.push("/dashboard");
-            return;
+          if (accessToken && refreshToken) {
+            // Session'ı set et
+            const {
+              data: { session },
+              error: sessionError,
+            } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (sessionError) {
+              throw sessionError;
+            }
+
+            if (session) {
+              await handleSession(session);
+              return;
+            }
           }
         }
 
-        // Regular OAuth callback
+        // Regular OAuth callback (hash yoksa)
         const {
           data: { session },
           error: sessionError,
@@ -42,27 +59,7 @@ export default function AuthCallbackPage() {
         }
 
         if (session) {
-          // Profile oluştur/güncelle
-          try {
-            await supabase.from("profiles").upsert({
-              id: session.user.id,
-              email: session.user.email,
-              full_name:
-                session.user.user_metadata?.full_name ||
-                session.user.user_metadata?.name,
-              avatar_url:
-                session.user.user_metadata?.avatar_url ||
-                session.user.user_metadata?.picture,
-              updated_at: new Date().toISOString(),
-            });
-          } catch (profileError) {
-            console.error("Profile error (non-critical):", profileError);
-          }
-
-          // Dashboard'a yönlendir
-          setTimeout(() => {
-            router.push("/dashboard");
-          }, 1000);
+          await handleSession(session);
         } else {
           setError("No session found. Please try again.");
         }
@@ -77,17 +74,38 @@ export default function AuthCallbackPage() {
       }
     };
 
+    // Helper function to handle session
+    const handleSession = async (session: any) => {
+      // Profile oluştur/güncelle
+      try {
+        await supabase.from("profiles").upsert(
+          {
+            id: session.user.id,
+            email: session.user.email,
+            full_name: session.user.user_metadata?.full_name,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
+      } catch (profileError) {
+        console.error("Profile error (non-critical):", profileError);
+      }
+
+      // Dashboard'a yönlendir
+      router.push("/dashboard");
+    };
+
     handleAuthCallback();
   }, [router]);
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full p-8 bg-white dark:bg-gray-900 rounded-lg shadow">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-md w-full p-8 bg-white dark:bg-gray-800 rounded-lg shadow">
           <div className="text-center">
-            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30">
               <svg
-                className="h-6 w-6 text-red-600"
+                className="h-6 w-6 text-red-600 dark:text-red-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -100,17 +118,19 @@ export default function AuthCallbackPage() {
                 />
               </svg>
             </div>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
+            <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">
               Authentication Error
             </h3>
-            <p className="mt-2 text-sm text-gray-600">{error}</p>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              {error}
+            </p>
             <div className="mt-6">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Redirecting to login page in 5 seconds...
               </p>
               <button
                 onClick={() => router.push("/login")}
-                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
               >
                 Go to Login Now
               </button>
@@ -122,11 +142,13 @@ export default function AuthCallbackPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-4 text-gray-600">Completing authentication...</p>
-        <p className="mt-2 text-sm text-gray-500">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto"></div>
+        <p className="mt-4 text-gray-600 dark:text-gray-400">
+          Completing authentication...
+        </p>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
           You will be redirected to the dashboard shortly.
         </p>
       </div>

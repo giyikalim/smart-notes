@@ -148,28 +148,6 @@ export default function AdvancedSearchResults({
 
   return (
     <>
-      {/* Header Stats */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-            🎯 Gelişmiş Arama Sonuçları
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
-            <FileText className="w-4 h-4 mr-1" />
-            {total} not bulundu • Elasticsearch filtreleme aktif
-          </p>
-        </div>
-
-        <div className="text-sm bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900 px-4 py-2 rounded-lg border border-green-100 dark:border-gray-700">
-          <span className="font-medium text-green-700 dark:text-green-400">
-            ✅ {notes.length}
-          </span>
-          <span className="text-gray-600 dark:text-gray-400 ml-2">
-            not filtrelendi
-          </span>
-        </div>
-      </div>
-
       {/* Aggregations */}
       {renderAggregations()}
 

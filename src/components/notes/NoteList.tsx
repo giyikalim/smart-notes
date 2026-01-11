@@ -332,7 +332,7 @@ export default function NoteList({ searchQuery = "" }: NoteListProps) {
           <div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
               {searchQuery
-                ? `"${searchQuery}" Arama Sonuçları`
+                ? `"${searchQuery}" için Arama Sonuçları`
                 : "Tüm Notlarım"}
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center">

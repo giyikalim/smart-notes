@@ -54,7 +54,7 @@ export async function middleware(request: NextRequest) {
     "/pricing",
     "/privacy",
     "/terms",
-    "/api/auth/callback", // Supabase auth callback
+    "/api/callback", // Supabase auth callback
   ];
 
   const isPublicRoute = publicRoutes.some(

@@ -217,34 +217,30 @@ export default function DashboardPage() {
           {/* Main Content */}
           <div className="lg:col-span-3">
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-gray-900/30 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                      {showAdvancedResults
-                        ? "🎯 Gelişmiş Arama Sonuçları"
-                        : searchQuery
-                          ? `"${searchQuery}" için sonuçlar`
-                          : "Son Notlarım"}
-                    </h2>
+              {showAdvancedResults && (
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                        🎯 Gelişmiş Arama Sonuçları
+                      </h2>
 
-                    {showAdvancedResults && advancedSearchData && (
-                      <button
-                        onClick={handleClearAdvancedSearch}
-                        className="px-3 py-1 text-sm bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all"
-                      >
-                        ❌ Temizle
-                      </button>
-                    )}
+                      {showAdvancedResults && advancedSearchData && (
+                        <button
+                          onClick={handleClearAdvancedSearch}
+                          className="px-3 py-1 text-sm bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all"
+                        >
+                          ❌ Temizle
+                        </button>
+                      )}
+                    </div>
+
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {`${advancedSearchData?.total || 0} not filtrelendi`}
+                    </span>
                   </div>
-
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {showAdvancedResults
-                      ? `${advancedSearchData?.total || 0} not filtrelendi`
-                      : "Elasticsearch ile sıralanmıştır"}
-                  </span>
                 </div>
-              </div>
+              )}
 
               <div className="p-6">
                 {showAdvancedResults && advancedSearchData ? (

@@ -1254,7 +1254,7 @@ class ElasticsearchNoteAPI {
     if (options.filters?.languages?.length) {
       filterClauses.push({
         terms: {
-          "metadata.language.keyword": options.filters.languages,
+          "metadata.language": options.filters.languages,
         },
       });
     }
@@ -1314,7 +1314,7 @@ class ElasticsearchNoteAPI {
         aggs: {
           languages: {
             terms: {
-              field: "metadata.language.keyword",
+              field: "metadata.language",
               size: 10,
             },
           },
